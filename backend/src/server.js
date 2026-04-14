@@ -124,15 +124,6 @@ app.use((err, req, res, next) => {
 // SERVER STARTUP
 // ============================================
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
-
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`
@@ -145,10 +136,19 @@ const server = app.listen(PORT, () => {
 ║   Database: SQLite                                 ║
 ║   Status: ✓ READY                                  ║
 ║                                                    ║
-║   Built by: MrHim-Creator from South Africa      ║
+║   Built by: MrHim-Creator      ║
 ║                                                    ║
 ╚════════════════════════════════════════════════════╝
   `);
+});
+
+// Graceful shutdown (AFTER server is defined)
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });
 
 export default app;
