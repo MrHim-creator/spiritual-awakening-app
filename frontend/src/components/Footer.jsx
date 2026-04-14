@@ -63,7 +63,7 @@ export default function Footer() {
               Built with <span className="text-red-500">❤️</span> by
             </p>
             <p className="text-purple-600 dark:text-purple-400 font-bold text-xl">
-              MrHim-Creator South Africa 🇿🇦
+              MrHim-Creator 🇿🇦
             </p>
           </div>
 
