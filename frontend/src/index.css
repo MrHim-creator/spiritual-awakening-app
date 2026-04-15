@@ -2,9 +2,7 @@
    COMPREHENSIVE STYLE FIX - Mix Tailwind + Bootstrap
    ============================================= */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* Override dark mode - force colors to show */
 html {
