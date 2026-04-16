@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { useAuthStore } from './store';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Base URL WITHOUT /api (we'll add it to each endpoint for clarity)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // Create axios instance
 const apiClient = axios.create({
@@ -42,16 +43,16 @@ apiClient.interceptors.response.use(
 // ============================================
 export const authAPI = {
   register: (email, username, password) =>
-    apiClient.post('/auth/register', { email, username, password }),
+    apiClient.post('/api/auth/register', { email, username, password }),
 
   login: (email, password) =>
-    apiClient.post('/auth/login', { email, password }),
+    apiClient.post('/api/auth/login', { email, password }),
 
   getCurrentUser: () =>
-    apiClient.get('/auth/me'),
+    apiClient.get('/api/auth/me'),
 
   updateProfile: (data) =>
-    apiClient.put('/auth/me', data)
+    apiClient.put('/api/auth/me', data)
 };
 
 // ============================================
@@ -59,28 +60,28 @@ export const authAPI = {
 // ============================================
 export const quotesAPI = {
   getAllQuotes: (page = 1, limit = 10, category = null) =>
-    apiClient.get('/quotes', { params: { page, limit, category } }),
+    apiClient.get('/api/quotes', { params: { page, limit, category } }),
 
   getRandomQuote: () =>
-    apiClient.get('/quotes/random'),
+    apiClient.get('/api/quotes/random'),
 
   getQuoteById: (id) =>
-    apiClient.get(`/quotes/${id}`),
+    apiClient.get(`/api/quotes/${id}`),
 
   getCategories: () =>
-    apiClient.get('/quotes/categories/list'),
+    apiClient.get('/api/quotes/categories/list'),
 
   addFavorite: (quoteId) =>
-    apiClient.post(`/quotes/${quoteId}/favorite`),
+    apiClient.post(`/api/quotes/${quoteId}/favorite`),
 
   removeFavorite: (quoteId) =>
-    apiClient.delete(`/quotes/${quoteId}/favorite`),
+    apiClient.delete(`/api/quotes/${quoteId}/favorite`),
 
   getUserFavorites: () =>
-    apiClient.get('/quotes/user/favorites'),
+    apiClient.get('/api/quotes/user/favorites'),
 
   searchQuotes: (search, category) =>
-    apiClient.get('/quotes', { params: { search, category } })
+    apiClient.get('/api/quotes', { params: { search, category } })
 };
 
 // ============================================
@@ -88,19 +89,19 @@ export const quotesAPI = {
 // ============================================
 export const subscriptionAPI = {
   getPlans: () =>
-    apiClient.get('/subscriptions/plans'),
+    apiClient.get('/api/subscriptions/plans'),
 
   activateFree: () =>
-    apiClient.post('/subscriptions/activate-free'),
+    apiClient.post('/api/subscriptions/activate-free'),
 
   upgradeToPremium: () =>
-    apiClient.post('/subscriptions/upgrade-to-premium'),
+    apiClient.post('/api/subscriptions/upgrade-to-premium'),
 
   getStatus: () =>
-    apiClient.get('/subscriptions/status'),
+    apiClient.get('/api/subscriptions/status'),
 
   downgradeToFree: () =>
-    apiClient.post('/subscriptions/downgrade-to-free')
+    apiClient.post('/api/subscriptions/downgrade-to-free')
 };
 
 // ============================================
@@ -108,22 +109,22 @@ export const subscriptionAPI = {
 // ============================================
 export const audioAPI = {
   getLibrary: () =>
-    apiClient.get('/audio'),
+    apiClient.get('/api/audio'),
 
   getAudioByType: (audioType, audioId) =>
-    apiClient.get(`/audio/${audioType}/${audioId}`),
+    apiClient.get(`/api/audio/${audioType}/${audioId}`),
 
   startSession: (audioType, audioId) =>
-    apiClient.post('/audio/session/start', { audioType, audioId }),
+    apiClient.post('/api/audio/session/start', { audioType, audioId }),
 
   endSession: (sessionId, durationSeconds) =>
-    apiClient.post('/audio/session/end', { sessionId, durationSeconds }),
+    apiClient.post('/api/audio/session/end', { sessionId, durationSeconds }),
 
   getStats: () =>
-    apiClient.get('/audio/user/stats'),
+    apiClient.get('/api/audio/user/stats'),
 
   getAchievements: () =>
-    apiClient.get('/audio/user/achievements')
+    apiClient.get('/api/audio/user/achievements')
 };
 
 // ============================================
@@ -131,13 +132,13 @@ export const audioAPI = {
 // ============================================
 export const adsAPI = {
   getAds: () =>
-    apiClient.get('/ads'),
+    apiClient.get('/api/ads'),
 
   getAdById: (adId) =>
-    apiClient.get(`/ads/${adId}`),
+    apiClient.get(`/api/ads/${adId}`),
 
   trackClick: (adId) =>
-    apiClient.post(`/ads/${adId}/click`)
+    apiClient.post(`/api/ads/${adId}/click`)
 };
 
 // ============================================
@@ -145,7 +146,7 @@ export const adsAPI = {
 // ============================================
 export const healthAPI = {
   check: () =>
-    axios.get(`${API_URL}/health`)
+    apiClient.get('/api/health')  // Fixed: use apiClient and add /api
 };
 
 // ============================================
