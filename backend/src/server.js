@@ -15,140 +15,245 @@ import subscriptionsRouter from './routes/subscriptions.js';
 import adsRouter from './routes/ads.js';
 import audioRouter from './routes/audio.js';
 
-// Load environment variables
+// Load environment variables from .env file
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // ============================================
-// MIDDLEWARE SETUP
+// VALIDATE REQUIRED ENVIRONMENT VARIABLES
 // ============================================
 
-// Security headers
-app.use(helmet());
-
-// CORS configuration
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  FRONTEND_URL
+const requiredEnvVars = [
+  'FRONTEND_URL',
+  'JWT_SECRET',
+  'NODE_ENV'
 ];
 
-app.use(cors({
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ ERROR: Missing required environment variables:');
+  missingEnvVars.forEach(varName => {
+    console.error(`   - ${varName}`);
+  });
+  console.error('\n📋 Please set these in your .env file or Render environment variables');
+  process.exit(1);
+}
+
+// ============================================
+// SECURITY HEADERS & CONFIGURATION
+// ============================================
+
+app.use(helmet());
+
+// ============================================
+// CORS CONFIGURATION - SECURE
+// ============================================
+
+// Build allowed origins ONLY from environment variables
+// NO hardcoding of URLs
+const buildAllowedOrigins = () => {
+  const origins = [];
+  
+  // Add development origins only if NOT in production
+  if (process.env.NODE_ENV !== 'production') {
+    origins.push(
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000'
+    );
+  }
+  
+  // Add frontend URL from environment variable
+  if (process.env.FRONTEND_URL) {
+    origins.push(process.env.FRONTEND_URL);
+  }
+  
+  // Add additional allowed origins if provided as comma-separated list
+  if (process.env.ADDITIONAL_ALLOWED_ORIGINS) {
+    const additionalOrigins = process.env.ADDITIONAL_ALLOWED_ORIGINS
+      .split(',')
+      .map(origin => origin.trim())
+      .filter(Boolean);
+    origins.push(...additionalOrigins);
+  }
+  
+  return origins;
+};
+
+const allowedOrigins = buildAllowedOrigins();
+
+// Log origins only in development to avoid exposing in production logs
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🔒 Allowed CORS Origins (Development Only):');
+  allowedOrigins.forEach(origin => console.log(`   ✓ ${origin}`));
+}
+
+const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (mobile apps, curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is allowed
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Log warning in development only
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      }
+      callback(new Error('CORS policy violation'));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Type'],
+  optionsSuccessStatus: 200,
+  maxAge: 86400 // 24 hours
+};
 
-// Request logging and ID
+// Apply CORS
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// ============================================
+// REQUEST LOGGING & TRACKING
+// ============================================
+
 app.use((req, res, next) => {
   req.id = uuidv4();
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - RequestID: ${req.id}`);
+  
+  // Log request in development only (to avoid exposing patterns in production)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - RequestID: ${req.id}`);
+  }
+  
   next();
 });
 
-// Body parser
+// ============================================
+// BODY PARSER
+// ============================================
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Apply rate limiting to API routes
+// ============================================
+// RATE LIMITING
+// ============================================
+
 app.use('/api/', rateLimiter.apiLimiter);
 app.use('/api/auth/login', rateLimiter.authLimiter);
 app.use('/api/auth/register', rateLimiter.authLimiter);
 
 // ============================================
-// ROUTES
+// HEALTH CHECK ENDPOINT
 // ============================================
 
-// Health check (no auth required)
 app.get('/api/health', (req, res) => {
+  // Don't expose sensitive info in health check
   res.json({
     status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    message: 'Spiritual Awakening App Backend is running!'
+    timestamp: new Date().toISOString()
   });
 });
 
-// Auth routes
+// ============================================
+// API ROUTES
+// ============================================
+
 app.use('/api/auth', authRouter);
-
-// Quotes routes
 app.use('/api/quotes', quotesRouter);
-
-// Subscriptions routes
 app.use('/api/subscriptions', subscriptionsRouter);
-
-// Ads routes
 app.use('/api/ads', adsRouter);
-
-// Audio routes
 app.use('/api/audio', audioRouter);
 
 // ============================================
-// ERROR HANDLING
+// ERROR HANDLING MIDDLEWARE
 // ============================================
 
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
-    error: 'Not found',
-    path: req.path,
-    method: req.method
+    error: 'Resource not found'
   });
 });
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(`[ERROR] ${req.id}:`, err);
+  // Log error in development
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(`[ERROR] ${req.id}:`, err.message);
+    console.error(err.stack);
+  } else {
+    // In production, log minimal info to secure logging service
+    console.error(`[ERROR] RequestID: ${req.id}, Message: ${err.message}`);
+  }
 
-  // Don't leak stack traces in production
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-    ...(isDevelopment && { stack: err.stack })
-  });
+  // Check if response already sent
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  // Build error response - NEVER expose stack traces in production
+  const errorResponse = {
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error' 
+      : err.message || 'Internal server error'
+  };
+
+  // Only include request ID in development
+  if (process.env.NODE_ENV !== 'production') {
+    errorResponse.requestId = req.id;
+  }
+
+  res.status(err.status || err.statusCode || 500).json(errorResponse);
 });
 
 // ============================================
 // SERVER STARTUP
 // ============================================
 
-// Start server
 const server = app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════╗
 ║                                                    ║
 ║   🙏 SPIRITUAL AWAKENING APP - BACKEND RUNNING    ║
 ║                                                    ║
-║   Server: http://localhost:${PORT}                  ║
-║   Frontend: ${FRONTEND_URL}
-║   Database: SQLite                                 ║
+║   Environment: ${process.env.NODE_ENV || 'development'}
 ║   Status: ✓ READY                                  ║
-║                                                    ║
-║   Built by: MrHim-Creator      ║
 ║                                                    ║
 ╚════════════════════════════════════════════════════╝
   `);
 });
 
-// Graceful shutdown (AFTER server is defined)
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
+
+const handleShutdown = (signal) => {
+  console.log(`\n${signal} received, shutting down gracefully...`);
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
   });
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
 });
 
 export default app;
