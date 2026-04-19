@@ -1,8 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import helmet from 'helmet';
-import { v4 as uuidv4 } from 'uuid';
 
 // Load environment variables
 dotenv.config();
@@ -10,162 +8,133 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ============================================
-// VALIDATE ENVIRONMENT VARIABLES
-// ============================================
-
-const requiredEnvVars = ['FRONTEND_URL', 'JWT_SECRET', 'NODE_ENV'];
-const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-
-if (missingEnvVars.length > 0) {
-  console.error('❌ Missing environment variables:', missingEnvVars);
-  process.exit(1);
-}
+console.log('🚀 Starting server...');
+console.log('Environment variables loaded:', {
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: PORT,
+  FRONTEND_URL: process.env.FRONTEND_URL ? '✓ Set' : '❌ Missing'
+});
 
 // ============================================
-// SECURITY HEADERS
+// CORS CONFIGURATION
 // ============================================
-
-app.use(helmet());
-
-// ============================================
-// CORS CONFIGURATION - MOST IMPORTANT
-// ============================================
-
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:3000'
-];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    console.log(`🔍 CORS check for origin: ${origin || 'no-origin'}`);
+    
+    // Allow no origin (mobile, curl)
     if (!origin) {
+      console.log('✅ No origin provided, allowing');
       return callback(null, true);
     }
     
-    // Check if origin is in whitelist
-    if (allowedOrigins.includes(origin)) {
+    // Check if origin matches FRONTEND_URL
+    if (origin === process.env.FRONTEND_URL) {
+      console.log('✅ Origin matches FRONTEND_URL');
       callback(null, true);
     } else {
-      console.warn(`⚠️ CORS blocked: ${origin}`);
-      callback(new Error('CORS not allowed'));
+      console.log(`❌ Origin blocked: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Type'],
-  optionsSuccessStatus: 200,
-  maxAge: 86400
+  optionsSuccessStatus: 200
 };
 
-// Apply CORS to all routes
+// Apply CORS
 app.use(cors(corsOptions));
-
-// Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
+
+console.log(`✅ CORS configured for: ${process.env.FRONTEND_URL}`);
 
 // ============================================
 // MIDDLEWARE
 // ============================================
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Request logging
+// Log all requests
 app.use((req, res, next) => {
-  req.id = uuidv4();
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  console.log(`📨 ${req.method} ${req.path}`);
   next();
 });
 
 // ============================================
-// HEALTH CHECK ENDPOINT
+// TEST ENDPOINTS
 // ============================================
 
+// Health check
 app.get('/api/health', (req, res) => {
-  res.status(200).json({
+  console.log('✅ Health check endpoint hit');
+  res.json({
     status: 'OK',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    message: 'Backend is running! 🙏'
   });
 });
 
-// ============================================
-// DUMMY ROUTES (Replace with your actual routes)
-// ============================================
-
-// Authentication routes
+// Test registration
 app.post('/api/auth/register', (req, res) => {
-  try {
-    const { email, username, password } = req.body;
-    
-    // Validation
-    if (!email || !username || !password) {
-      return res.status(400).json({
-        error: 'Email, username, and password are required'
-      });
-    }
-    
-    if (password.length < 8) {
-      return res.status(400).json({
-        error: 'Password must be at least 8 characters'
-      });
-    }
-    
-    // TODO: Save to database
-    // For now, just return success
-    res.status(201).json({
-      message: 'User registered successfully',
-      user: {
-        email,
-        username
-      }
+  console.log('📝 Register endpoint hit');
+  console.log('Request body:', req.body);
+  
+  const { email, username, password } = req.body;
+  
+  // Validation
+  if (!email || !username || !password) {
+    return res.status(400).json({
+      error: 'Email, username, and password are required'
     });
-  } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
-});
-
-app.post('/api/auth/login', (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({
-        error: 'Email and password are required'
-      });
-    }
-    
-    // TODO: Verify against database
-    res.status(200).json({
-      message: 'Login successful',
-      token: 'dummy-token-123'
+  
+  if (password.length < 8) {
+    return res.status(400).json({
+      error: 'Password must be at least 8 characters'
     });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
-});
-
-// Quotes routes (placeholder)
-app.get('/api/quotes', (req, res) => {
-  res.status(200).json({
-    quotes: [
-      { id: 1, text: 'Example quote 1', category: 'wisdom' },
-      { id: 2, text: 'Example quote 2', category: 'meditation' }
-    ]
+  
+  // Success response (dummy - replace with real DB logic)
+  res.status(201).json({
+    message: 'User registered successfully',
+    user: {
+      email,
+      username,
+      id: Math.random().toString(36).substr(2, 9)
+    }
   });
 });
 
+// Test login
+app.post('/api/auth/login', (req, res) => {
+  console.log('🔑 Login endpoint hit');
+  
+  const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({
+      error: 'Email and password are required'
+    });
+  }
+  
+  res.json({
+    message: 'Login successful',
+    token: 'dummy-token-' + Math.random().toString(36).substr(2, 9),
+    user: { email }
+  });
+});
+
+// Test quotes
 app.get('/api/quotes/random', (req, res) => {
-  res.status(200).json({
+  console.log('✨ Random quote endpoint hit');
+  
+  res.json({
     id: 1,
-    text: 'Today is a new beginning',
+    text: 'The greatest glory in living lies not in never falling, but in rising every time we fall.',
+    author: 'Nelson Mandela',
     category: 'wisdom'
   });
 });
@@ -175,10 +144,12 @@ app.get('/api/quotes/random', (req, res) => {
 // ============================================
 
 app.use((req, res) => {
+  console.log(`❌ 404 Not Found: ${req.method} ${req.path}`);
   res.status(404).json({
     error: 'Route not found',
     path: req.path,
-    method: req.method
+    method: req.method,
+    message: 'Endpoint does not exist. Check your API path.'
   });
 });
 
@@ -187,58 +158,44 @@ app.use((req, res) => {
 // ============================================
 
 app.use((err, req, res, next) => {
-  console.error(`[ERROR] ${req.id}:`, err.message);
+  console.error('❌ ERROR:', err.message);
+  console.error(err.stack);
   
   if (res.headersSent) {
     return next(err);
   }
   
   res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' 
-      ? 'Internal server error' 
-      : err.message
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'production' ? 'Server error' : err.message
   });
 });
 
 // ============================================
-// SERVER STARTUP
+// START SERVER
 // ============================================
 
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════╗
 ║                                                    ║
-║   🙏 SPIRITUAL AWAKENING APP - BACKEND RUNNING    ║
+║   🙏 SPIRITUAL AWAKENING APP - BACKEND            ║
 ║                                                    ║
-║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(30)} ║
-║   Status: ✓ READY FOR CONNECTIONS                 ║
+║   Status: ✅ READY FOR CONNECTIONS                ║
 ║   Port: ${String(PORT).padEnd(41)} ║
+║   CORS: ✅ Enabled                                 ║
 ║                                                    ║
-║   CORS Enabled for:                                ║
-║   ${process.env.FRONTEND_URL.padEnd(48)} ║
+║   Frontend URL:                                    ║
+║   ${(process.env.FRONTEND_URL || 'NOT SET').padEnd(48)} ║
+║                                                    ║
+║   Available Endpoints:                             ║
+║   ✅ GET  /api/health                              ║
+║   ✅ POST /api/auth/register                       ║
+║   ✅ POST /api/auth/login                          ║
+║   ✅ GET  /api/quotes/random                       ║
 ║                                                    ║
 ╚════════════════════════════════════════════════════╝
   `);
 });
-
-// ============================================
-// GRACEFUL SHUTDOWN
-// ============================================
-
-const handleShutdown = (signal) => {
-  console.log(`\n${signal} received, shutting down...`);
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-  
-  setTimeout(() => {
-    console.error('Forced shutdown');
-    process.exit(1);
-  }, 30000);
-};
-
-process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 export default app;
