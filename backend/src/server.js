@@ -1,6 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import { v4 as uuidv4 } from 'uuid';
+
+// Import your actual route files
+import authRouter from './routes/auth.js';
+import quotesRouter from './routes/quotes.js';
+import subscriptionsRouter from './routes/subscriptions.js';
+import adsRouter from './routes/ads.js';
+import audioRouter from './routes/audio.js';
 
 // Load environment variables
 dotenv.config();
@@ -8,44 +17,70 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-console.log('🚀 Starting server...');
-console.log('Environment variables loaded:', {
+console.log('🚀 Starting Spiritual Awakening Backend...');
+console.log('Environment:', {
   NODE_ENV: process.env.NODE_ENV,
   PORT: PORT,
-  FRONTEND_URL: process.env.FRONTEND_URL ? '✓ Set' : '❌ Missing'
+  FRONTEND_URL: process.env.FRONTEND_URL ? '✅ Set' : '❌ Missing'
 });
 
 // ============================================
-// CORS CONFIGURATION
+// VALIDATE ENVIRONMENT VARIABLES
 // ============================================
+
+const requiredEnvVars = ['FRONTEND_URL', 'JWT_SECRET', 'NODE_ENV'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingEnvVars);
+  process.exit(1);
+}
+
+// ============================================
+// SECURITY HEADERS
+// ============================================
+
+app.use(helmet());
+
+// ============================================
+// CORS CONFIGURATION - CRITICAL FOR FRONTEND
+// ============================================
+
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000'
+];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    console.log(`🔍 CORS check for origin: ${origin || 'no-origin'}`);
-    
-    // Allow no origin (mobile, curl)
+    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
-      console.log('✅ No origin provided, allowing');
       return callback(null, true);
     }
     
-    // Check if origin matches FRONTEND_URL
-    if (origin === process.env.FRONTEND_URL) {
-      console.log('✅ Origin matches FRONTEND_URL');
+    // Check if origin is in whitelist
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.log(`❌ Origin blocked: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`⚠️ CORS blocked: ${origin}`);
+      callback(new Error('CORS not allowed'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
+  exposedHeaders: ['Content-Type'],
+  optionsSuccessStatus: 200,
+  maxAge: 86400
 };
 
-// Apply CORS
+// Apply CORS to all routes
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
 console.log(`✅ CORS configured for: ${process.env.FRONTEND_URL}`);
@@ -54,102 +89,66 @@ console.log(`✅ CORS configured for: ${process.env.FRONTEND_URL}`);
 // MIDDLEWARE
 // ============================================
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Log all requests
+// Request logging
 app.use((req, res, next) => {
-  console.log(`📨 ${req.method} ${req.path}`);
+  req.id = uuidv4();
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  }
   next();
 });
 
 // ============================================
-// TEST ENDPOINTS
+// HEALTH CHECK ENDPOINT
 // ============================================
 
-// Health check
 app.get('/api/health', (req, res) => {
-  console.log('✅ Health check endpoint hit');
-  res.json({
+  res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     message: 'Backend is running! 🙏'
   });
 });
 
-// Test registration
-app.post('/api/auth/register', (req, res) => {
-  console.log('📝 Register endpoint hit');
-  console.log('Request body:', req.body);
-  
-  const { email, username, password } = req.body;
-  
-  // Validation
-  if (!email || !username || !password) {
-    return res.status(400).json({
-      error: 'Email, username, and password are required'
-    });
-  }
-  
-  if (password.length < 8) {
-    return res.status(400).json({
-      error: 'Password must be at least 8 characters'
-    });
-  }
-  
-  // Success response (dummy - replace with real DB logic)
-  res.status(201).json({
-    message: 'User registered successfully',
-    user: {
-      email,
-      username,
-      id: Math.random().toString(36).substr(2, 9)
-    }
-  });
-});
+// ============================================
+// YOUR ACTUAL ROUTES - REGISTER THEM HERE
+// ============================================
 
-// Test login
-app.post('/api/auth/login', (req, res) => {
-  console.log('🔑 Login endpoint hit');
-  
-  const { email, password } = req.body;
-  
-  if (!email || !password) {
-    return res.status(400).json({
-      error: 'Email and password are required'
-    });
-  }
-  
-  res.json({
-    message: 'Login successful',
-    token: 'dummy-token-' + Math.random().toString(36).substr(2, 9),
-    user: { email }
-  });
-});
+// Authentication routes
+app.use('/api/auth', authRouter);
 
-// Test quotes
-app.get('/api/quotes/random', (req, res) => {
-  console.log('✨ Random quote endpoint hit');
-  
-  res.json({
-    id: 1,
-    text: 'The greatest glory in living lies not in never falling, but in rising every time we fall.',
-    author: 'Nelson Mandela',
-    category: 'wisdom'
-  });
-});
+// Quotes routes
+app.use('/api/quotes', quotesRouter);
+
+// Subscriptions routes
+app.use('/api/subscriptions', subscriptionsRouter);
+
+// Ads routes
+app.use('/api/ads', adsRouter);
+
+// Audio routes
+app.use('/api/audio', audioRouter);
+
+console.log('✅ All routes registered:');
+console.log('   - /api/auth (authRouter)');
+console.log('   - /api/quotes (quotesRouter)');
+console.log('   - /api/subscriptions (subscriptionsRouter)');
+console.log('   - /api/ads (adsRouter)');
+console.log('   - /api/audio (audioRouter)');
 
 // ============================================
 // 404 HANDLER
 // ============================================
 
 app.use((req, res) => {
-  console.log(`❌ 404 Not Found: ${req.method} ${req.path}`);
+  console.warn(`⚠️ 404 Not Found: ${req.method} ${req.path}`);
   res.status(404).json({
     error: 'Route not found',
     path: req.path,
-    method: req.method,
-    message: 'Endpoint does not exist. Check your API path.'
+    method: req.method
   });
 });
 
@@ -158,44 +157,78 @@ app.use((req, res) => {
 // ============================================
 
 app.use((err, req, res, next) => {
-  console.error('❌ ERROR:', err.message);
-  console.error(err.stack);
+  console.error(`[ERROR] ${req.id}:`, err.message);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(err.stack);
+  }
   
   if (res.headersSent) {
     return next(err);
   }
   
   res.status(err.status || 500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'production' ? 'Server error' : err.message
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error' 
+      : err.message,
+    requestId: req.id
   });
 });
 
 // ============================================
-// START SERVER
+// SERVER STARTUP
 // ============================================
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════╗
 ║                                                    ║
-║   🙏 SPIRITUAL AWAKENING APP - BACKEND            ║
+║   🙏 SPIRITUAL AWAKENING APP - BACKEND RUNNING    ║
 ║                                                    ║
+║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(30)} ║
 ║   Status: ✅ READY FOR CONNECTIONS                ║
 ║   Port: ${String(PORT).padEnd(41)} ║
-║   CORS: ✅ Enabled                                 ║
 ║                                                    ║
-║   Frontend URL:                                    ║
-║   ${(process.env.FRONTEND_URL || 'NOT SET').padEnd(48)} ║
+║   CORS Enabled for:                                ║
+║   ${process.env.FRONTEND_URL.padEnd(48)} ║
 ║                                                    ║
 ║   Available Endpoints:                             ║
 ║   ✅ GET  /api/health                              ║
 ║   ✅ POST /api/auth/register                       ║
 ║   ✅ POST /api/auth/login                          ║
-║   ✅ GET  /api/quotes/random                       ║
+║   ✅ GET  /api/quotes                              ║
+║   ✅ GET  /api/subscriptions/status                ║
+║   ✅ GET  /api/ads                                 ║
+║   ✅ GET  /api/audio                               ║
 ║                                                    ║
 ╚════════════════════════════════════════════════════╝
   `);
+});
+
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
+
+const handleShutdown = (signal) => {
+  console.log(`\n${signal} received, shutting down gracefully...`);
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+  
+  // Force shutdown after 30 seconds
+  setTimeout(() => {
+    console.error('Forced shutdown after 30 seconds');
+    process.exit(1);
+  }, 30000);
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1);
 });
 
 export default app;
