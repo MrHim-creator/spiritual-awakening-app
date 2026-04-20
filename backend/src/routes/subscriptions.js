@@ -1,243 +1,210 @@
 import express from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import db from '../models/database.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
-/**
- * GET /api/subscriptions/plans
- * Get all subscription plans
- */
+// ============================================
+// SUBSCRIPTION PLANS (Public - No Auth Required)
+// ============================================
+
 router.get('/plans', (req, res) => {
   try {
+    const plans = [
+      {
+        id: 'free',
+        name: 'Free Plan',
+        price: 0,
+        features: [
+          'Limited quotes',
+          'Basic meditations',
+          '3 audio sessions per day'
+        ]
+      },
+      {
+        id: 'premium',
+        name: 'Premium Plan',
+        price: 9.99,
+        features: [
+          'Unlimited quotes',
+          'All meditations',
+          'Unlimited audio sessions',
+          'Ad-free experience',
+          'Offline access'
+        ]
+      }
+    ];
+
     res.json({
       success: true,
-      plans: [
-        {
-          id: 'free',
-          name: 'Free Plan',
-          price: 'R0',
-          billingCycle: 'forever',
-          features: [
-            'Access to free quotes',
-            'Basic nature sounds (3)',
-            'Limited Solfeggio (3 frequencies)',
-            'Save up to 5 favorites',
-            'Basic meditation tracking',
-            'See ads'
-          ]
-        },
-        {
-          id: 'premium',
-          name: 'Premium Plan (Free while building)',
-          price: 'R0',
-          billingCycle: 'lifetime',
-          savingsBadge: 'FREE DURING DEVELOPMENT',
-          features: [
-            'All quotes (25+)',
-            'All 8 Solfeggio frequencies',
-            'All nature sounds (6)',
-            'Unlimited favorites',
-            'Full meditation tracking',
-            'No ads',
-            'Download for offline',
-            'Priority features'
-          ]
-        }
-      ],
-      message: 'Both plans are FREE while you build your app.'
+      plans: plans
     });
   } catch (error) {
     console.error('Error fetching plans:', error);
-    res.status(500).json({ error: 'Failed to fetch plans' });
+    res.status(500).json({
+      error: 'Failed to fetch plans',
+      message: error.message
+    });
   }
 });
 
-/**
- * POST /api/subscriptions/activate-free
- * Activate free plan for user
- */
-router.post('/activate-free', authMiddleware, (req, res) => {
+// ============================================
+// GET SUBSCRIPTION STATUS (Requires Authentication)
+// ============================================
+
+router.get('/status', authMiddleware, (req, res) => {
   try {
-    const userId = req.user.userId;
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    // Get user ID from authenticated request
+    const userId = req.user?.id;
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const existingSub = db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').get(userId);
-    
-    if (existingSub) {
-      return res.status(200).json({ 
-        success: true,
-        message: 'You already have a subscription'
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'No user ID found in token'
       });
     }
 
-    const subscriptionId = uuidv4();
-    const fiveYearsFromNow = new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000);
-
-    db.prepare(`
-      INSERT INTO subscriptions (
-        id, user_id, stripe_subscription_id, plan_type, 
-        status, current_period_end, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      subscriptionId,
-      userId,
-      'free-' + uuidv4(),
-      'free',
-      'active',
-      fiveYearsFromNow.toISOString(),
-      new Date().toISOString()
-    );
-
-    db.prepare(`
-      UPDATE users 
-      SET subscription_type = 'free', subscription_end_date = ?
-      WHERE id = ?
-    `).run(fiveYearsFromNow.toISOString(), userId);
+    // TODO: Fetch from database
+    // For now, return dummy data
+    const subscription = {
+      userId: userId,
+      plan: 'free',
+      status: 'active',
+      createdAt: new Date(),
+      expiresAt: null, // Free plan doesn't expire
+      features: {
+        unlimitedQuotes: false,
+        unlimitedAudio: false,
+        offlineAccess: false,
+        adFree: false
+      }
+    };
 
     res.json({
       success: true,
-      message: 'Free subscription activated!'
+      subscription: subscription
     });
   } catch (error) {
-    console.error('Error activating free plan:', error);
-    res.status(500).json({ error: 'Failed to activate free plan' });
+    console.error('Error fetching subscription status:', error);
+    res.status(500).json({
+      error: 'Failed to fetch subscription status',
+      message: error.message
+    });
   }
 });
 
-/**
- * POST /api/subscriptions/upgrade-to-premium
- * Upgrade to premium (FREE during development)
- */
+// ============================================
+// ACTIVATE FREE SUBSCRIPTION (Requires Authentication)
+// ============================================
+
+router.post('/activate-free', authMiddleware, (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // TODO: Save to database
+    const subscription = {
+      userId: userId,
+      plan: 'free',
+      status: 'active',
+      activatedAt: new Date()
+    };
+
+    console.log(`Activated free subscription for user: ${userId}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Free subscription activated',
+      subscription: subscription
+    });
+  } catch (error) {
+    console.error('Error activating free subscription:', error);
+    res.status(500).json({
+      error: 'Failed to activate free subscription',
+      message: error.message
+    });
+  }
+});
+
+// ============================================
+// UPGRADE TO PREMIUM (Requires Authentication)
+// ============================================
+
 router.post('/upgrade-to-premium', authMiddleware, (req, res) => {
   try {
-    const userId = req.user.userId;
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const userId = req.user?.id;
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
     }
 
-    if (user.subscription_type === 'premium') {
-      return res.status(409).json({ error: 'You already have premium' });
-    }
+    // TODO: Process payment with Stripe or similar
+    // For now, just update the subscription
+    const subscription = {
+      userId: userId,
+      plan: 'premium',
+      status: 'active',
+      upgradedAt: new Date(),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    };
 
-    let subscription = db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').get(userId);
-    
-    const tenYearsFromNow = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000);
+    console.log(`Upgraded user to premium: ${userId}`);
 
-    if (subscription) {
-      db.prepare(`
-        UPDATE subscriptions
-        SET plan_type = 'premium',
-            status = 'active',
-            current_period_end = ?
-        WHERE user_id = ?
-      `).run(tenYearsFromNow.toISOString(), userId);
-    } else {
-      const subscriptionId = uuidv4();
-      db.prepare(`
-        INSERT INTO subscriptions (
-          id, user_id, stripe_subscription_id, plan_type,
-          status, current_period_end, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        subscriptionId,
-        userId,
-        'premium-free-' + uuidv4(),
-        'premium',
-        'active',
-        tenYearsFromNow.toISOString(),
-        new Date().toISOString()
-      );
-    }
-
-    db.prepare(`
-      UPDATE users
-      SET subscription_type = 'premium', subscription_end_date = ?
-      WHERE id = ?
-    `).run(tenYearsFromNow.toISOString(), userId);
-
-    res.json({
+    res.status(201).json({
       success: true,
-      message: 'Premium activated! (R0 during development)'
+      message: 'Upgraded to premium subscription',
+      subscription: subscription
     });
   } catch (error) {
     console.error('Error upgrading to premium:', error);
-    res.status(500).json({ error: 'Failed to upgrade to premium' });
-  }
-});
-
-/**
- * GET /api/subscriptions/status
- * Get current user's subscription status
- */
-router.get('/status', authMiddleware, (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-    const subscription = db.prepare('SELECT * FROM subscriptions WHERE user_id = ?').get(userId);
-
-    res.json({
-      success: true,
-      subscriptionType: user.subscription_type || 'none',
-      isPremium: user.subscription_type === 'premium',
-      subscription: subscription ? {
-        planType: subscription.plan_type,
-        status: subscription.status,
-        currentPeriodEnd: subscription.current_period_end
-      } : null
+    res.status(500).json({
+      error: 'Failed to upgrade to premium',
+      message: error.message
     });
-  } catch (error) {
-    console.error('Error fetching subscription:', error);
-    res.status(500).json({ error: 'Failed to fetch subscription' });
   }
 });
 
-/**
- * POST /api/subscriptions/downgrade-to-free
- * Downgrade from premium back to free
- */
+// ============================================
+// DOWNGRADE TO FREE (Requires Authentication)
+// ============================================
+
 router.post('/downgrade-to-free', authMiddleware, (req, res) => {
   try {
-    const userId = req.user.userId;
-    const subscription = db.prepare('SELECT * FROM subscriptions WHERE user_id = ?').get(userId);
+    const userId = req.user?.id;
 
-    if (!subscription) {
-      return res.status(404).json({ error: 'No active subscription' });
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
     }
 
-    if (subscription.plan_type === 'free') {
-      return res.status(400).json({ error: 'You already have free plan' });
-    }
+    // TODO: Update database
+    const subscription = {
+      userId: userId,
+      plan: 'free',
+      status: 'active',
+      downgradedAt: new Date()
+    };
 
-    const fiveYearsFromNow = new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000);
-
-    db.prepare(`
-      UPDATE subscriptions
-      SET plan_type = 'free',
-          current_period_end = ?
-      WHERE user_id = ?
-    `).run(fiveYearsFromNow.toISOString(), userId);
-
-    db.prepare(`
-      UPDATE users
-      SET subscription_type = 'free'
-      WHERE id = ?
-    `).run(userId);
+    console.log(`Downgraded user to free: ${userId}`);
 
     res.json({
       success: true,
-      message: 'Downgraded to free plan'
+      message: 'Downgraded to free subscription',
+      subscription: subscription
     });
   } catch (error) {
-    console.error('Downgrade error:', error);
-    res.status(500).json({ error: 'Failed to downgrade' });
+    console.error('Error downgrading subscription:', error);
+    res.status(500).json({
+      error: 'Failed to downgrade subscription',
+      message: error.message
+    });
   }
 });
 

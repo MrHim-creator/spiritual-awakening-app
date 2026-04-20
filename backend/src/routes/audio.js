@@ -1,198 +1,337 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../models/database.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Audio library - Solfeggio frequencies and nature sounds
-const AUDIO_LIBRARY = {
-  solfeggio: [
-    { id: '174hz', name: '174 Hz - Deep Sleep', frequency: '174Hz', description: 'Pain relief and healing' },
-    { id: '285hz', name: '285 Hz - Regeneration', frequency: '285Hz', description: 'Cell regeneration' },
-    { id: '396hz', name: '396 Hz - Liberation', frequency: '396Hz', description: 'Release from guilt and fear' },
-    { id: '417hz', name: '417 Hz - Transformation', frequency: '417Hz', description: 'Facilitating change' },
-    { id: '528hz', name: '528 Hz - Love & Miracles', frequency: '528Hz', description: 'DNA repair and healing' },
-    { id: '639hz', name: '639 Hz - Connection', frequency: '639Hz', description: 'Relationships and harmony' },
-    { id: '741hz', name: '741 Hz - Intuition', frequency: '741Hz', description: 'Awaken inner strength' },
-    { id: '852hz', name: '852 Hz - Awakening', frequency: '852Hz', description: 'Spiritual enlightenment' }
-  ],
-  nature: [
-    { id: 'rain', name: 'Peaceful Rain', type: 'rain', description: 'Calming rain sounds' },
-    { id: 'ocean', name: 'Ocean Waves', type: 'ocean', description: 'Relaxing ocean waves' },
-    { id: 'forest', name: 'Forest Birds', type: 'forest', description: 'Forest ambience' },
-    { id: 'thunder', name: 'Thunder Storm', type: 'thunder', description: 'Dramatic thunderstorm' },
-    { id: 'river', name: 'Flowing River', type: 'river', description: 'Peaceful river sounds' },
-    { id: 'meditation', name: 'Meditation Bell', type: 'meditation', description: 'Tibetan singing bowl' }
-  ]
-};
+// In-memory storage (replace with database later)
+const audioLibrary = [
+  {
+    id: '1',
+    type: 'meditation',
+    title: '10-Minute Breathing Meditation',
+    duration: 600,
+    category: 'Breathing',
+    description: 'Calm your mind with this simple breathing exercise'
+  },
+  {
+    id: '2',
+    type: 'meditation',
+    title: '20-Minute Body Scan',
+    duration: 1200,
+    category: 'Body Scan',
+    description: 'Relax your body from head to toe'
+  },
+  {
+    id: '3',
+    type: 'frequency',
+    title: '174 Hz - Pain Relief',
+    duration: 3600,
+    category: 'Healing',
+    description: 'Binaural beats for pain relief'
+  },
+  {
+    id: '4',
+    type: 'frequency',
+    title: '528 Hz - Love Frequency',
+    duration: 3600,
+    category: 'Healing',
+    description: 'Healing frequency for love and peace'
+  }
+];
 
-/**
- * GET /api/audio
- * Get all audio library
- */
-router.get('/', (req, res) => {
+// In-memory user sessions (replace with database later)
+const userSessions = {};
+
+// ============================================
+// GET AUDIO LIBRARY (Public)
+// ============================================
+
+router.get('/', optionalAuthMiddleware, (req, res) => {
   try {
     res.json({
       success: true,
-      audio: AUDIO_LIBRARY
+      audioLibrary: audioLibrary
     });
   } catch (error) {
     console.error('Error fetching audio library:', error);
-    res.status(500).json({ error: 'Failed to fetch audio library' });
+    res.status(500).json({
+      error: 'Failed to fetch audio library',
+      message: error.message
+    });
   }
 });
 
-/**
- * GET /api/audio/:audioType/:audioId
- * Get specific audio
- */
-router.get('/:audioType/:audioId', (req, res) => {
+// ============================================
+// GET AUDIO BY TYPE AND ID (Public)
+// ============================================
+
+router.get('/:audioType/:audioId', optionalAuthMiddleware, (req, res) => {
   try {
     const { audioType, audioId } = req.params;
-    
-    let audio = null;
-    if (audioType === 'solfeggio') {
-      audio = AUDIO_LIBRARY.solfeggio.find(a => a.id === audioId);
-    } else if (audioType === 'nature') {
-      audio = AUDIO_LIBRARY.nature.find(a => a.id === audioId);
+
+    if (!audioType || !audioId) {
+      return res.status(400).json({
+        error: 'Missing audioType or audioId'
+      });
     }
 
+    const audio = audioLibrary.find(
+      a => a.type === audioType && a.id === audioId
+    );
+
     if (!audio) {
-      return res.status(404).json({ error: 'Audio not found' });
+      return res.status(404).json({
+        error: 'Audio not found',
+        audioType: audioType,
+        audioId: audioId
+      });
     }
 
     res.json({
       success: true,
-      audio
+      audio: audio
     });
   } catch (error) {
     console.error('Error fetching audio:', error);
-    res.status(500).json({ error: 'Failed to fetch audio' });
+    res.status(500).json({
+      error: 'Failed to fetch audio',
+      message: error.message
+    });
   }
 });
 
-/**
- * POST /api/audio/session/start
- * Start meditation session
- */
+// ============================================
+// START AUDIO SESSION (Requires Authentication)
+// ============================================
+
 router.post('/session/start', authMiddleware, (req, res) => {
   try {
     const { audioType, audioId } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user?.id;
 
-    if (!audioType || !audioId) {
-      return res.status(400).json({ error: 'audioType and audioId required' });
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
     }
 
-    const sessionId = uuidv4();
-    
-    db.prepare(`
-      INSERT INTO audio_sessions (id, user_id, audio_type, audio_id, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(sessionId, userId, audioType, audioId, new Date().toISOString());
+    if (!audioType || !audioId) {
+      return res.status(400).json({
+        error: 'Missing audioType or audioId',
+        required: ['audioType', 'audioId']
+      });
+    }
 
-    res.json({
+    // Find the audio
+    const audio = audioLibrary.find(
+      a => a.type === audioType && a.id === audioId
+    );
+
+    if (!audio) {
+      return res.status(404).json({
+        error: 'Audio not found'
+      });
+    }
+
+    // Create session
+    const sessionId = uuidv4();
+    const session = {
+      sessionId: sessionId,
+      userId: userId,
+      audioType: audioType,
+      audioId: audioId,
+      audioTitle: audio.title,
+      startedAt: new Date(),
+      status: 'active'
+    };
+
+    // Store session (in-memory for now)
+    if (!userSessions[userId]) {
+      userSessions[userId] = [];
+    }
+    userSessions[userId].push(session);
+
+    console.log(`Started session for user ${userId}: ${sessionId}`);
+
+    res.status(201).json({
       success: true,
-      sessionId,
-      message: 'Meditation session started'
+      message: 'Audio session started',
+      session: session
     });
   } catch (error) {
-    console.error('Error starting session:', error);
-    res.status(500).json({ error: 'Failed to start session' });
+    console.error('Error starting audio session:', error);
+    res.status(500).json({
+      error: 'Failed to start audio session',
+      message: error.message
+    });
   }
 });
 
-/**
- * POST /api/audio/session/end
- * End meditation session
- */
+// ============================================
+// END AUDIO SESSION (Requires Authentication)
+// ============================================
+
 router.post('/session/end', authMiddleware, (req, res) => {
   try {
     const { sessionId, durationSeconds } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user?.id;
 
-    if (!sessionId || !durationSeconds) {
-      return res.status(400).json({ error: 'sessionId and durationSeconds required' });
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
     }
 
-    db.prepare(`
-      UPDATE audio_sessions
-      SET duration_seconds = ?, completed = 1
-      WHERE id = ? AND user_id = ?
-    `).run(durationSeconds, sessionId, userId);
+    if (!sessionId || typeof durationSeconds !== 'number') {
+      return res.status(400).json({
+        error: 'Missing sessionId or durationSeconds'
+      });
+    }
+
+    // TODO: Update database
+    const completedSession = {
+      sessionId: sessionId,
+      userId: userId,
+      durationSeconds: durationSeconds,
+      completedAt: new Date()
+    };
+
+    console.log(`Ended session for user ${userId}: ${sessionId}`);
 
     res.json({
       success: true,
-      message: 'Session ended',
-      duration: durationSeconds
+      message: 'Audio session ended',
+      session: completedSession
     });
   } catch (error) {
-    console.error('Error ending session:', error);
-    res.status(500).json({ error: 'Failed to end session' });
+    console.error('Error ending audio session:', error);
+    res.status(500).json({
+      error: 'Failed to end audio session',
+      message: error.message
+    });
   }
 });
 
-/**
- * GET /api/audio/user/stats
- * Get user's audio stats
- */
+// ============================================
+// GET USER STATS (Requires Authentication)
+// ============================================
+
 router.get('/user/stats', authMiddleware, (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user?.id;
 
-    const stats = db.prepare(`
-      SELECT 
-        COUNT(*) as totalSessions,
-        SUM(duration_seconds) as totalMinutes,
-        AVG(duration_seconds) as avgDuration,
-        MAX(created_at) as lastSession
-      FROM audio_sessions
-      WHERE user_id = ? AND completed = 1
-    `).get(userId);
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
 
-    const byType = db.prepare(`
-      SELECT audio_type, COUNT(*) as count, SUM(duration_seconds) as duration
-      FROM audio_sessions
-      WHERE user_id = ? AND completed = 1
-      GROUP BY audio_type
-    `).all(userId);
+    // Get user's sessions
+    const userSessionsList = userSessions[userId] || [];
+
+    // Calculate stats
+    const totalSessions = userSessionsList.length;
+    const totalMinutes = userSessionsList.reduce((sum, session) => {
+      // Estimate based on audio duration if session data available
+      return sum + 10; // Default 10 minutes per session for now
+    }, 0);
+
+    const stats = {
+      userId: userId,
+      totalSessions: totalSessions,
+      totalMinutes: totalMinutes,
+      lastSessionAt: userSessionsList.length > 0 
+        ? userSessionsList[userSessionsList.length - 1].startedAt 
+        : null,
+      sessions: userSessionsList
+    };
 
     res.json({
       success: true,
-      stats: {
-        totalSessions: stats.totalSessions || 0,
-        totalMinutes: Math.floor((stats.totalMinutes || 0) / 60),
-        avgDuration: Math.floor(stats.avgDuration || 0),
-        lastSession: stats.lastSession,
-        byType
-      }
+      stats: stats
     });
   } catch (error) {
-    console.error('Error fetching stats:', error);
-    res.status(500).json({ error: 'Failed to fetch stats' });
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({
+      error: 'Failed to fetch user stats',
+      message: error.message
+    });
   }
 });
 
-/**
- * GET /api/audio/user/achievements
- * Get user's achievements
- */
+// ============================================
+// GET USER ACHIEVEMENTS (Requires Authentication)
+// ============================================
+
 router.get('/user/achievements', authMiddleware, (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user?.id;
 
-    const achievements = db.prepare(`
-      SELECT * FROM achievements WHERE user_id = ? ORDER BY earned_at DESC
-    `).all(userId);
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Get user's stats
+    const userSessionsList = userSessions[userId] || [];
+    const totalMinutes = userSessionsList.length * 10; // Estimate
+
+    // Define achievements
+    const achievements = [];
+
+    if (userSessionsList.length >= 1) {
+      achievements.push({
+        id: 'first-session',
+        name: 'Getting Started',
+        description: 'Complete your first audio session',
+        unlockedAt: userSessionsList[0]?.startedAt,
+        icon: '🎯'
+      });
+    }
+
+    if (userSessionsList.length >= 5) {
+      achievements.push({
+        id: 'session-streak',
+        name: 'On a Roll',
+        description: 'Complete 5 sessions',
+        unlockedAt: userSessionsList[4]?.startedAt,
+        icon: '🔥'
+      });
+    }
+
+    if (totalMinutes >= 60) {
+      achievements.push({
+        id: 'hour-meditation',
+        name: 'Mindful Hour',
+        description: 'Meditate for 60 minutes total',
+        unlockedAt: new Date(),
+        icon: '⏱️'
+      });
+    }
+
+    if (totalMinutes >= 300) {
+      achievements.push({
+        id: 'five-hour-meditation',
+        name: 'Zen Master',
+        description: 'Meditate for 300 minutes total',
+        unlockedAt: new Date(),
+        icon: '🧘'
+      });
+    }
 
     res.json({
       success: true,
-      achievements
+      achievements: achievements,
+      totalAchievements: achievements.length
     });
   } catch (error) {
     console.error('Error fetching achievements:', error);
-    res.status(500).json({ error: 'Failed to fetch achievements' });
+    res.status(500).json({
+      error: 'Failed to fetch achievements',
+      message: error.message
+    });
   }
 });
 
