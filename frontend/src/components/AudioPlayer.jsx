@@ -21,7 +21,8 @@ export default function AudioPlayer() {
 
   const startSession = async (audio) => {
     try {
-      const res = await audioAPI.startSession(audio.frequency ? 'solfeggio' : 'nature', audio.id);
+      const audioType = audio.type || (audio.frequency ? 'solfeggio' : 'nature');
+      const res = await audioAPI.startSession(audioType, audio.id);
       setSessionId(res.sessionId);
       setCurrentAudio(audio);
       setIsPlaying(true);
@@ -64,9 +65,21 @@ export default function AudioPlayer() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  const isPremium = currentSubscription?.isPremium;
-  const solfeggios = audioLibrary.solfeggio || [];
-  const natureSounds = audioLibrary.nature || [];
+  const isPremium = currentSubscription?.plan === 'premium';
+  
+  // Handle both old structure (audioLibrary.solfeggio) and new structure (flat array)
+  let solfeggios = [];
+  let natureSounds = [];
+
+  if (Array.isArray(audioLibrary)) {
+    // Backend returns flat array
+    solfeggios = audioLibrary.filter(audio => audio.type === 'frequency') || [];
+    natureSounds = audioLibrary.filter(audio => audio.type === 'meditation') || [];
+  } else if (audioLibrary && typeof audioLibrary === 'object') {
+    // If structured with solfeggio and nature properties
+    solfeggios = audioLibrary.solfeggio || [];
+    natureSounds = audioLibrary.nature || [];
+  }
 
   // Apply free plan restrictions
   const availableSolfeggios = isPremium ? solfeggios : solfeggios.slice(0, 3);
@@ -96,7 +109,7 @@ export default function AudioPlayer() {
               : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          Solfeggio Frequencies {!isPremium && '(3/8)'}
+          Solfeggio Frequencies {!isPremium && solfeggios.length > 0 && `(${Math.min(3, solfeggios.length)}/${solfeggios.length})`}
         </button>
         <button
           onClick={() => setActiveTab('nature')}
@@ -106,7 +119,7 @@ export default function AudioPlayer() {
               : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          Nature Sounds {!isPremium && '(3/6)'}
+          Nature Sounds {!isPremium && natureSounds.length > 0 && `(${Math.min(3, natureSounds.length)}/${natureSounds.length})`}
         </button>
       </div>
 
@@ -119,10 +132,10 @@ export default function AudioPlayer() {
                 Now Playing
               </h3>
               <p className="text-gray-700 dark:text-gray-300 mb-1">
-                {currentAudio.name}
+                {currentAudio.title || currentAudio.name}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {currentAudio.description}
+                {currentAudio.description || 'Meditation audio'}
               </p>
             </div>
             <div className="text-right ml-4">
@@ -172,45 +185,51 @@ export default function AudioPlayer() {
 
       {/* Audio Grid */}
       <div className="grid md:grid-cols-2 gap-4">
-        {displayedAudios.map((audio) => (
-          <div
-            key={audio.id}
-            className={`p-4 rounded-lg border-2 cursor-pointer transition ${
-              currentAudio?.id === audio.id
-                ? 'border-purple-600 bg-purple-50 dark:bg-purple-900/20'
-                : 'border-gray-200 dark:border-gray-700 hover:border-purple-600 dark:hover:border-purple-600'
-            }`}
-            onClick={() => {
-              if (currentAudio?.id !== audio.id) {
-                setCurrentAudio(audio);
-                if (isPlaying) endSession();
-              }
-            }}
-          >
-            <h4 className="font-bold text-gray-900 dark:text-white mb-1">
-              {audio.name}
-            </h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              {audio.description}
-            </p>
-
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                startSession(audio);
+        {displayedAudios && displayedAudios.length > 0 ? (
+          displayedAudios.map((audio) => (
+            <div
+              key={audio.id}
+              className={`p-4 rounded-lg border-2 cursor-pointer transition ${
+                currentAudio?.id === audio.id
+                  ? 'border-purple-600 bg-purple-50 dark:bg-purple-900/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-purple-600 dark:hover:border-purple-600'
+              }`}
+              onClick={() => {
+                if (currentAudio?.id !== audio.id) {
+                  setCurrentAudio(audio);
+                  if (isPlaying) endSession();
+                }
               }}
-              disabled={isPlaying && currentAudio?.id !== audio.id}
-              className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition"
             >
-              <Play size={18} />
-              {currentAudio?.id === audio.id ? 'Playing...' : 'Play Now'}
-            </button>
+              <h4 className="font-bold text-gray-900 dark:text-white mb-1">
+                {audio.title || audio.name}
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                {audio.description}
+              </p>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startSession(audio);
+                }}
+                disabled={isPlaying && currentAudio?.id !== audio.id}
+                className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition"
+              >
+                <Play size={18} />
+                {currentAudio?.id === audio.id ? 'Playing...' : 'Play Now'}
+              </button>
+            </div>
+          ))
+        ) : (
+          <div className="col-span-2 text-center py-8 text-gray-600 dark:text-gray-400">
+            <p>No audio available for this category</p>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Premium Notice */}
-      {!isPremium && (
+      {!isPremium && (solfeggios.length > 0 || natureSounds.length > 0) && (
         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600 rounded">
           <p className="text-sm text-blue-700 dark:text-blue-300">
             <strong>💡 Upgrade to Premium:</strong> Unlock all {solfeggios.length} Solfeggio frequencies and {natureSounds.length} nature sounds!

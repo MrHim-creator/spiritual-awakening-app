@@ -63,13 +63,12 @@ export const useQuoteStore = create((set) => ({
 }));
 
 // ============================================
-// AUDIO STORE
+// AUDIO STORE - FIXED
 // ============================================
 export const useAudioStore = create((set) => ({
-  audioLibrary: {
-    solfeggio: [],
-    nature: []
-  },
+  // ✅ FIXED: Initialize as empty array (matches backend response format)
+  // Backend sends: [{id: '1', type: 'frequency', title: '...'}, ...]
+  audioLibrary: [],
   currentAudio: null,
   isPlaying: false,
   volume: 0.7,
@@ -81,7 +80,24 @@ export const useAudioStore = create((set) => ({
   },
   achievements: [],
 
-  setAudioLibrary: (library) => set({ audioLibrary: library }),
+  // ✅ FIXED: Smart setter that handles both array and object formats
+  setAudioLibrary: (library) => {
+    if (Array.isArray(library)) {
+      // Backend sends array - use it directly
+      set({ audioLibrary: library });
+    } else if (library && typeof library === 'object') {
+      // Legacy format with solfeggio/nature properties - convert to array
+      const flatArray = [
+        ...(library.solfeggio || []),
+        ...(library.nature || [])
+      ];
+      set({ audioLibrary: flatArray });
+    } else {
+      // Fallback to empty array
+      set({ audioLibrary: [] });
+    }
+  },
+
   setCurrentAudio: (audio) => set({ currentAudio: audio }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setVolume: (volume) => set({ volume: Math.max(0, Math.min(1, volume)) }),
@@ -94,16 +110,52 @@ export const useAudioStore = create((set) => ({
 }));
 
 // ============================================
-// SUBSCRIPTION STORE
+// SUBSCRIPTION STORE - FIXED
 // ============================================
 export const useSubscriptionStore = create((set) => ({
   plans: [],
-  currentSubscription: null,
+  
+  // ✅ FIXED: Initialize with proper structure
+  // AudioPlayer checks: currentSubscription?.plan === 'premium'
+  // So we need the 'plan' property!
+  currentSubscription: {
+    userId: null,
+    plan: 'free',        // ← This is what AudioPlayer checks!
+    status: 'inactive',
+    createdAt: null,
+    expiresAt: null,
+    features: {
+      unlimitedQuotes: false,
+      unlimitedAudio: false,
+      offlineAccess: false,
+      adFree: false
+    }
+  },
   isPremium: false,
   isLoading: false,
 
   setPlans: (plans) => set({ plans }),
-  setCurrentSubscription: (subscription) => set({ currentSubscription: subscription }),
+  
+  // ✅ IMPROVED: Better setter that auto-updates isPremium
+  setCurrentSubscription: (subscription) => {
+    const isPremium = subscription?.plan === 'premium';
+    set({ 
+      currentSubscription: subscription || {
+        plan: 'free',
+        status: 'inactive',
+        createdAt: null,
+        expiresAt: null,
+        features: {
+          unlimitedQuotes: false,
+          unlimitedAudio: false,
+          offlineAccess: false,
+          adFree: false
+        }
+      },
+      isPremium: isPremium
+    });
+  },
+  
   setIsPremium: (isPremium) => set({ isPremium }),
   setLoading: (isLoading) => set({ isLoading })
 }));
