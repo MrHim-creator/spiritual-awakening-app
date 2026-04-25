@@ -32,10 +32,19 @@ export const initializeDatabase = () => {
       subscription_type TEXT DEFAULT 'free',
       subscription_end_date TEXT,
       bio TEXT,
+      is_admin INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Add is_admin column if it doesn't exist (migration for existing databases)
+  try {
+    db.prepare('SELECT is_admin FROM users LIMIT 1').get();
+  } catch {
+    db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0');
+    console.log('✓ Added is_admin column to users table');
+  }
 
   // Quotes table
   db.exec(`
@@ -89,6 +98,22 @@ export const initializeDatabase = () => {
       impressions INTEGER DEFAULT 0,
       clicks INTEGER DEFAULT 0,
       active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Audio files table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS audio_files (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      file_url TEXT NOT NULL,
+      duration_seconds INTEGER,
+      category TEXT,
+      is_premium INTEGER DEFAULT 0,
+      plays INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
@@ -181,7 +206,70 @@ export const initializeDatabase = () => {
 
     console.log('✓ Database seeded with 25+ quotes');
   }
-};
+
+  // Seed audio files (only if table is empty)
+  const audioCount = db.prepare('SELECT COUNT(*) as count FROM audio_files').get().count;
+
+  if (audioCount === 0) {
+    const audioFiles = [
+      {
+        id: 'audio_1',
+        title: '10-Minute Breathing Meditation',
+        description: 'Calm your mind with this simple breathing exercise',
+        file_url: 'https://example.com/audio/breathing-meditation.mp3', // Replace with actual URL
+        duration_seconds: 600,
+        category: 'Breathing',
+        is_premium: 0
+      },
+      {
+        id: 'audio_2',
+        title: '20-Minute Body Scan',
+        description: 'Relax your body from head to toe',
+        file_url: 'https://example.com/audio/body-scan.mp3', // Replace with actual URL
+        duration_seconds: 1200,
+        category: 'Body Scan',
+        is_premium: 0
+      },
+      {
+        id: 'audio_3',
+        title: '174 Hz - Pain Relief',
+        description: 'Binaural beats for pain relief',
+        file_url: 'https://example.com/audio/174hz-pain-relief.mp3', // Replace with actual URL
+        duration_seconds: 3600,
+        category: 'Healing',
+        is_premium: 1
+      },
+      {
+        id: 'audio_4',
+        title: '528 Hz - Love Frequency',
+        description: 'Healing frequency for love and peace',
+        file_url: 'https://example.com/audio/528hz-love-frequency.mp3', // Replace with actual URL
+        duration_seconds: 3600,
+        category: 'Healing',
+        is_premium: 1
+      }
+    ];
+
+    const insertAudio = db.prepare(`
+      INSERT INTO audio_files (id, title, description, file_url, duration_seconds, category, is_premium, plays)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    audioFiles.forEach(audio => {
+      insertAudio.run(
+        audio.id,
+        audio.title,
+        audio.description,
+        audio.file_url,
+        audio.duration_seconds,
+        audio.category,
+        audio.is_premium,
+        0
+      );
+    });
+
+    console.log('✓ Database seeded with 4 audio files');
+  }
 
 // Initialize on import
 initializeDatabase();

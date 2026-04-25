@@ -21,8 +21,7 @@ export default function AudioPlayer() {
 
   const startSession = async (audio) => {
     try {
-      const audioType = audio.type || (audio.frequency ? 'solfeggio' : 'nature');
-      const res = await audioAPI.startSession(audioType, audio.id);
+      const res = await audioAPI.startSession(audio.id);
       setSessionId(res.sessionId);
       setCurrentAudio(audio);
       setIsPlaying(true);

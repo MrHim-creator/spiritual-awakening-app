@@ -1,47 +1,12 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
+import db from '../models/database.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
-// In-memory storage (replace with database later)
-const audioLibrary = [
-  {
-    id: '1',
-    type: 'meditation',
-    title: '10-Minute Breathing Meditation',
-    duration: 600,
-    category: 'Breathing',
-    description: 'Calm your mind with this simple breathing exercise'
-  },
-  {
-    id: '2',
-    type: 'meditation',
-    title: '20-Minute Body Scan',
-    duration: 1200,
-    category: 'Body Scan',
-    description: 'Relax your body from head to toe'
-  },
-  {
-    id: '3',
-    type: 'frequency',
-    title: '174 Hz - Pain Relief',
-    duration: 3600,
-    category: 'Healing',
-    description: 'Binaural beats for pain relief'
-  },
-  {
-    id: '4',
-    type: 'frequency',
-    title: '528 Hz - Love Frequency',
-    duration: 3600,
-    category: 'Healing',
-    description: 'Healing frequency for love and peace'
-  }
-];
-
-// In-memory user sessions (replace with database later)
-const userSessions = {};
+const router = express.Router();
 
 // ============================================
 // GET AUDIO LIBRARY (Public)
@@ -49,12 +14,33 @@ const userSessions = {};
 
 router.get('/', optionalAuthMiddleware, (req, res) => {
   try {
+    // Fetch audio files from database
+    const audioFiles = db.prepare(`
+      SELECT id, title, description, file_url, duration_seconds, category, is_premium, plays
+      FROM audio_files
+      ORDER BY created_at DESC
+    `).all();
+
+    // Transform to match frontend expectations
+    const audioLibrary = audioFiles.map(audio => ({
+      id: audio.id,
+      type: audio.category.toLowerCase().includes('meditation') ? 'meditation' : 'frequency',
+      title: audio.title,
+      duration: audio.duration_seconds,
+      category: audio.category,
+      description: audio.description,
+      is_premium: audio.is_premium === 1,
+      plays: audio.plays
+    }));
+
+    logger.info(`Audio library fetched: ${audioLibrary.length} files`);
+
     res.json({
       success: true,
       audioLibrary: audioLibrary
     });
   } catch (error) {
-    console.error('Error fetching audio library:', error);
+    logger.error('Error fetching audio library:', error);
     res.status(500).json({
       error: 'Failed to fetch audio library',
       message: error.message
@@ -63,37 +49,56 @@ router.get('/', optionalAuthMiddleware, (req, res) => {
 });
 
 // ============================================
-// GET AUDIO BY TYPE AND ID (Public)
+// GET AUDIO BY ID (Public)
 // ============================================
 
-router.get('/:audioType/:audioId', optionalAuthMiddleware, (req, res) => {
+router.get('/:audioId', optionalAuthMiddleware, (req, res) => {
   try {
-    const { audioType, audioId } = req.params;
+    const { audioId } = req.params;
 
-    if (!audioType || !audioId) {
+    if (!audioId) {
       return res.status(400).json({
-        error: 'Missing audioType or audioId'
+        error: 'Missing audioId'
       });
     }
 
-    const audio = audioLibrary.find(
-      a => a.type === audioType && a.id === audioId
-    );
+    const audio = db.prepare(`
+      SELECT id, title, description, file_url, duration_seconds, category, is_premium, plays
+      FROM audio_files
+      WHERE id = ?
+    `).get(audioId);
 
     if (!audio) {
       return res.status(404).json({
         error: 'Audio not found',
-        audioType: audioType,
         audioId: audioId
       });
     }
 
+    // Transform to match frontend expectations
+    const audioData = {
+      id: audio.id,
+      type: audio.category.toLowerCase().includes('meditation') ? 'meditation' : 'frequency',
+      title: audio.title,
+      duration: audio.duration_seconds,
+      category: audio.category,
+      description: audio.description,
+      file_url: audio.file_url,
+      is_premium: audio.is_premium === 1,
+      plays: audio.plays
+    };
+
+    // Increment play count
+    db.prepare('UPDATE audio_files SET plays = plays + 1 WHERE id = ?').run(audioId);
+
+    logger.info(`Audio fetched: ${audio.title} (ID: ${audioId})`);
+
     res.json({
       success: true,
-      audio: audio
+      audio: audioData
     });
   } catch (error) {
-    console.error('Error fetching audio:', error);
+    logger.error('Error fetching audio:', error);
     res.status(500).json({
       error: 'Failed to fetch audio',
       message: error.message
@@ -107,8 +112,8 @@ router.get('/:audioType/:audioId', optionalAuthMiddleware, (req, res) => {
 
 router.post('/session/start', authMiddleware, (req, res) => {
   try {
-    const { audioType, audioId } = req.body;
-    const userId = req.user?.id;
+    const { audioId } = req.body;
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -116,43 +121,61 @@ router.post('/session/start', authMiddleware, (req, res) => {
       });
     }
 
-    if (!audioType || !audioId) {
+    if (!audioId) {
       return res.status(400).json({
-        error: 'Missing audioType or audioId',
-        required: ['audioType', 'audioId']
+        error: 'Missing audioId',
+        required: ['audioId']
       });
     }
 
-    // Find the audio
-    const audio = audioLibrary.find(
-      a => a.type === audioType && a.id === audioId
-    );
+    // Fetch audio from database
+    const audio = db.prepare(`
+      SELECT id, title, category, is_premium, duration_seconds
+      FROM audio_files
+      WHERE id = ?
+    `).get(audioId);
 
     if (!audio) {
       return res.status(404).json({
-        error: 'Audio not found'
+        error: 'Audio not found',
+        audioId: audioId
       });
     }
 
-    // Create session
+    // Check if user has access to premium audio
+    if (audio.is_premium === 1) {
+      const userSubscription = db.prepare(`
+        SELECT status FROM subscriptions
+        WHERE user_id = ? AND status = 'active'
+      `).get(userId);
+
+      if (!userSubscription) {
+        return res.status(403).json({
+          error: 'Premium content requires active subscription',
+          audioId: audioId
+        });
+      }
+    }
+
+    // Create session in database
     const sessionId = uuidv4();
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO audio_sessions (id, user_id, audio_id, duration_seconds, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(sessionId, userId, audioId, audio.duration_seconds || 0, now);
+
     const session = {
       sessionId: sessionId,
       userId: userId,
-      audioType: audioType,
       audioId: audioId,
       audioTitle: audio.title,
-      startedAt: new Date(),
+      startedAt: now,
       status: 'active'
     };
 
-    // Store session (in-memory for now)
-    if (!userSessions[userId]) {
-      userSessions[userId] = [];
-    }
-    userSessions[userId].push(session);
-
-    console.log(`Started session for user ${userId}: ${sessionId}`);
+    logger.info(`Started session for user ${userId}: ${sessionId} (Audio: ${audio.title})`);
 
     res.status(201).json({
       success: true,
@@ -160,7 +183,7 @@ router.post('/session/start', authMiddleware, (req, res) => {
       session: session
     });
   } catch (error) {
-    console.error('Error starting audio session:', error);
+    logger.error('Error starting audio session:', error);
     res.status(500).json({
       error: 'Failed to start audio session',
       message: error.message
@@ -175,7 +198,7 @@ router.post('/session/start', authMiddleware, (req, res) => {
 router.post('/session/end', authMiddleware, (req, res) => {
   try {
     const { sessionId, durationSeconds } = req.body;
-    const userId = req.user?.id;
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -189,12 +212,23 @@ router.post('/session/end', authMiddleware, (req, res) => {
       });
     }
 
-    // TODO: Update database
+    // Update session in database
+    const now = new Date().toISOString();
+    const result = db.prepare(`
+      UPDATE audio_sessions
+      SET duration_seconds = ?, completed = 1
+      WHERE id = ? AND user_id = ?
+    `).run(durationSeconds, sessionId, userId);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
     const completedSession = {
       sessionId: sessionId,
       userId: userId,
       durationSeconds: durationSeconds,
-      completedAt: new Date()
+      completedAt: now
     };
 
     console.log(`Ended session for user ${userId}: ${sessionId}`);
@@ -205,7 +239,7 @@ router.post('/session/end', authMiddleware, (req, res) => {
       session: completedSession
     });
   } catch (error) {
-    console.error('Error ending audio session:', error);
+    logger.error('Error ending audio session:', error);
     res.status(500).json({
       error: 'Failed to end audio session',
       message: error.message
@@ -219,7 +253,7 @@ router.post('/session/end', authMiddleware, (req, res) => {
 
 router.get('/user/stats', authMiddleware, (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -227,32 +261,32 @@ router.get('/user/stats', authMiddleware, (req, res) => {
       });
     }
 
-    // Get user's sessions
-    const userSessionsList = userSessions[userId] || [];
+    // Get user's sessions from database
+    const sessions = db.prepare('SELECT * FROM audio_sessions WHERE user_id = ? ORDER BY created_at DESC').all(userId);
 
     // Calculate stats
-    const totalSessions = userSessionsList.length;
-    const totalMinutes = userSessionsList.reduce((sum, session) => {
-      // Estimate based on audio duration if session data available
-      return sum + 10; // Default 10 minutes per session for now
-    }, 0);
+    const totalSessions = sessions.length;
+    const totalMinutes = sessions.reduce((sum, session) => sum + (session.duration_seconds || 0), 0) / 60;
+    const completedSessions = sessions.filter(s => s.completed).length;
+    const lastSessionAt = sessions.length > 0 ? sessions[0].created_at : null;
 
     const stats = {
       userId: userId,
       totalSessions: totalSessions,
-      totalMinutes: totalMinutes,
-      lastSessionAt: userSessionsList.length > 0 
-        ? userSessionsList[userSessionsList.length - 1].startedAt 
-        : null,
-      sessions: userSessionsList
+      completedSessions: completedSessions,
+      totalMinutes: Math.round(totalMinutes),
+      lastSessionAt: lastSessionAt,
+      sessions: sessions
     };
+
+    logger.info(`User stats fetched for ${userId}: ${totalSessions} sessions, ${Math.round(totalMinutes)} minutes`);
 
     res.json({
       success: true,
       stats: stats
     });
   } catch (error) {
-    console.error('Error fetching user stats:', error);
+    logger.error('Error fetching user stats:', error);
     res.status(500).json({
       error: 'Failed to fetch user stats',
       message: error.message
@@ -266,7 +300,7 @@ router.get('/user/stats', authMiddleware, (req, res) => {
 
 router.get('/user/achievements', authMiddleware, (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -274,49 +308,82 @@ router.get('/user/achievements', authMiddleware, (req, res) => {
       });
     }
 
-    // Get user's stats
-    const userSessionsList = userSessions[userId] || [];
-    const totalMinutes = userSessionsList.length * 10; // Estimate
+    // Get user's sessions from database
+    const sessions = db.prepare('SELECT * FROM audio_sessions WHERE user_id = ? AND completed = 1').all(userId);
+    const totalMinutes = sessions.reduce((sum, session) => sum + (session.duration_seconds || 0), 0) / 60;
 
     // Define achievements
     const achievements = [];
 
-    if (userSessionsList.length >= 1) {
+    if (sessions.length >= 1) {
+      // Check if achievement already exists
+      const existing = db.prepare('SELECT id FROM achievements WHERE user_id = ? AND achievement_type = ?').get(userId, 'first-session');
+      if (!existing) {
+        const achievementId = uuidv4();
+        db.prepare(`
+          INSERT INTO achievements (id, user_id, achievement_type, title, description, earned_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(achievementId, userId, 'first-session', 'Getting Started', 'Complete your first audio session', new Date().toISOString());
+      }
       achievements.push({
         id: 'first-session',
         name: 'Getting Started',
         description: 'Complete your first audio session',
-        unlockedAt: userSessionsList[0]?.startedAt,
+        unlockedAt: sessions[0]?.created_at,
         icon: '🎯'
       });
     }
 
-    if (userSessionsList.length >= 5) {
+    if (sessions.length >= 5) {
+      const existing = db.prepare('SELECT id FROM achievements WHERE user_id = ? AND achievement_type = ?').get(userId, 'session-streak');
+      if (!existing) {
+        const achievementId = uuidv4();
+        db.prepare(`
+          INSERT INTO achievements (id, user_id, achievement_type, title, description, earned_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(achievementId, userId, 'session-streak', 'On a Roll', 'Complete 5 sessions', new Date().toISOString());
+      }
       achievements.push({
         id: 'session-streak',
         name: 'On a Roll',
         description: 'Complete 5 sessions',
-        unlockedAt: userSessionsList[4]?.startedAt,
+        unlockedAt: sessions[4]?.created_at,
         icon: '🔥'
       });
     }
 
     if (totalMinutes >= 60) {
+      const existing = db.prepare('SELECT id FROM achievements WHERE user_id = ? AND achievement_type = ?').get(userId, 'hour-meditation');
+      if (!existing) {
+        const achievementId = uuidv4();
+        db.prepare(`
+          INSERT INTO achievements (id, user_id, achievement_type, title, description, earned_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(achievementId, userId, 'hour-meditation', 'Mindful Hour', 'Meditate for 60 minutes total', new Date().toISOString());
+      }
       achievements.push({
         id: 'hour-meditation',
         name: 'Mindful Hour',
         description: 'Meditate for 60 minutes total',
-        unlockedAt: new Date(),
+        unlockedAt: new Date().toISOString(),
         icon: '⏱️'
       });
     }
 
     if (totalMinutes >= 300) {
+      const existing = db.prepare('SELECT id FROM achievements WHERE user_id = ? AND achievement_type = ?').get(userId, 'five-hour-meditation');
+      if (!existing) {
+        const achievementId = uuidv4();
+        db.prepare(`
+          INSERT INTO achievements (id, user_id, achievement_type, title, description, earned_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(achievementId, userId, 'five-hour-meditation', 'Zen Master', 'Meditate for 300 minutes total', new Date().toISOString());
+      }
       achievements.push({
         id: 'five-hour-meditation',
         name: 'Zen Master',
         description: 'Meditate for 300 minutes total',
-        unlockedAt: new Date(),
+        unlockedAt: new Date().toISOString(),
         icon: '🧘'
       });
     }
@@ -327,7 +394,7 @@ router.get('/user/achievements', authMiddleware, (req, res) => {
       totalAchievements: achievements.length
     });
   } catch (error) {
-    console.error('Error fetching achievements:', error);
+    logger.error('Error fetching achievements:', error);
     res.status(500).json({
       error: 'Failed to fetch achievements',
       message: error.message

@@ -1,5 +1,9 @@
 import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import db from '../models/database.js';
 import { authMiddleware } from '../middleware/auth.js';
+import paystackService from '../services/paystack.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -54,7 +58,7 @@ router.get('/plans', (req, res) => {
 router.get('/status', authMiddleware, (req, res) => {
   try {
     // Get user ID from authenticated request
-    const userId = req.user?.id;
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -63,25 +67,45 @@ router.get('/status', authMiddleware, (req, res) => {
       });
     }
 
-    // TODO: Fetch from database
-    // For now, return dummy data
-    const subscription = {
-      userId: userId,
-      plan: 'free',
-      status: 'active',
-      createdAt: new Date(),
-      expiresAt: null, // Free plan doesn't expire
-      features: {
-        unlimitedQuotes: false,
-        unlimitedAudio: false,
-        offlineAccess: false,
-        adFree: false
-      }
-    };
+    // Fetch subscription from database
+    const subscription = db.prepare('SELECT * FROM subscriptions WHERE user_id = ?').get(userId);
+
+    if (!subscription) {
+      // Return default free subscription
+      return res.json({
+        success: true,
+        subscription: {
+          userId: userId,
+          plan: 'free',
+          status: 'active',
+          createdAt: new Date(),
+          expiresAt: null, // Free plan doesn't expire
+          features: {
+            unlimitedQuotes: false,
+            unlimitedAudio: false,
+            offlineAccess: false,
+            adFree: false
+          }
+        }
+      });
+    }
 
     res.json({
       success: true,
-      subscription: subscription
+      subscription: {
+        id: subscription.id,
+        userId: subscription.user_id,
+        plan: subscription.plan_type,
+        status: subscription.status,
+        createdAt: subscription.created_at,
+        expiresAt: subscription.current_period_end,
+        features: {
+          unlimitedQuotes: subscription.plan_type === 'premium',
+          unlimitedAudio: subscription.plan_type === 'premium',
+          offlineAccess: subscription.plan_type === 'premium',
+          adFree: subscription.plan_type === 'premium'
+        }
+      }
     });
   } catch (error) {
     console.error('Error fetching subscription status:', error);
@@ -98,7 +122,7 @@ router.get('/status', authMiddleware, (req, res) => {
 
 router.post('/activate-free', authMiddleware, (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -106,12 +130,32 @@ router.post('/activate-free', authMiddleware, (req, res) => {
       });
     }
 
-    // TODO: Save to database
+    // Check if user already has a subscription
+    const existingSub = db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').get(userId);
+    if (existingSub) {
+      return res.status(409).json({ error: 'User already has a subscription' });
+    }
+
+    // Create free subscription
+    const subId = uuidv4();
+    const now = new Date().toISOString();
+    const expiryDate = new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000).toISOString(); // 5 years
+
+    db.prepare(`
+      INSERT INTO subscriptions (id, user_id, plan_type, status, current_period_end, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(subId, userId, 'free', 'active', expiryDate, now, now);
+
+    // Update user subscription type
+    db.prepare('UPDATE users SET subscription_type = ? WHERE id = ?').run('free', userId);
+
     const subscription = {
+      id: subId,
       userId: userId,
       plan: 'free',
       status: 'active',
-      activatedAt: new Date()
+      activatedAt: now,
+      expiresAt: expiryDate
     };
 
     console.log(`Activated free subscription for user: ${userId}`);
@@ -134,9 +178,9 @@ router.post('/activate-free', authMiddleware, (req, res) => {
 // UPGRADE TO PREMIUM (Requires Authentication)
 // ============================================
 
-router.post('/upgrade-to-premium', authMiddleware, (req, res) => {
+router.post('/upgrade-to-premium', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -144,25 +188,64 @@ router.post('/upgrade-to-premium', authMiddleware, (req, res) => {
       });
     }
 
-    // TODO: Process payment with Stripe or similar
-    // For now, just update the subscription
-    const subscription = {
-      userId: userId,
-      plan: 'premium',
-      status: 'active',
-      upgradedAt: new Date(),
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
-    };
+    // Get user details for payment
+    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-    console.log(`Upgraded user to premium: ${userId}`);
+    // Premium plan: ₦9.99/month = 999 kobo
+    const amount = 99900; // ₦9,990/year in kobo (discounted annual pricing)
+    const reference = `upgrade_${userId}_${Date.now()}`;
 
-    res.status(201).json({
+    // Initialize Paystack transaction
+    const paymentResult = await paystackService.initializeTransaction({
+      email: user.email,
+      amount: amount,
+      reference: reference,
+      callback_url: `${process.env.FRONTEND_URL}/subscription/success`,
+      metadata: {
+        userId: userId,
+        planType: 'premium',
+        description: 'Premium subscription upgrade'
+      }
+    });
+
+    if (!paymentResult.success) {
+      logger.error('Paystack payment initialization failed', {
+        userId,
+        error: paymentResult.error
+      });
+
+      return res.status(500).json({
+        error: 'Payment initialization failed',
+        message: paymentResult.error
+      });
+    }
+
+    logger.info('Premium upgrade payment initialized', {
+      userId,
+      reference,
+      paystackRef: paymentResult.data.reference
+    });
+
+    res.status(200).json({
       success: true,
-      message: 'Upgraded to premium subscription',
-      subscription: subscription
+      message: 'Payment initialized',
+      payment: {
+        reference: paymentResult.data.reference,
+        authorization_url: paymentResult.data.authorization_url,
+        amount: amount / 100, // Convert back to Naira for display
+        currency: 'NGN'
+      }
     });
   } catch (error) {
     console.error('Error upgrading to premium:', error);
+    logger.error('Premium upgrade failed', {
+      userId: req.user?.userId,
+      error: error.message
+    });
+
     res.status(500).json({
       error: 'Failed to upgrade to premium',
       message: error.message
@@ -176,7 +259,7 @@ router.post('/upgrade-to-premium', authMiddleware, (req, res) => {
 
 router.post('/downgrade-to-free', authMiddleware, (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -184,12 +267,24 @@ router.post('/downgrade-to-free', authMiddleware, (req, res) => {
       });
     }
 
-    // TODO: Update database
+    // Update subscription to free
+    const now = new Date().toISOString();
+    const expiryDate = new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000).toISOString(); // 5 years
+
+    db.prepare(`
+      UPDATE subscriptions
+      SET plan_type = ?, status = ?, current_period_end = ?, updated_at = ?
+      WHERE user_id = ?
+    `).run('free', 'active', expiryDate, now, userId);
+
+    // Update user subscription type
+    db.prepare('UPDATE users SET subscription_type = ? WHERE id = ?').run('free', userId);
+
     const subscription = {
       userId: userId,
       plan: 'free',
       status: 'active',
-      downgradedAt: new Date()
+      downgradedAt: now
     };
 
     console.log(`Downgraded user to free: ${userId}`);
@@ -205,6 +300,68 @@ router.post('/downgrade-to-free', authMiddleware, (req, res) => {
       error: 'Failed to downgrade subscription',
       message: error.message
     });
+  }
+});
+
+// ============================================
+// PAYSTACK WEBHOOK - Handle Payment Confirmations
+// ============================================
+
+router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  try {
+    // Paystack sends webhook data in raw body
+    const event = JSON.parse(req.body);
+
+    logger.info('Paystack webhook received', {
+      event: event.event,
+      reference: event.data?.reference
+    });
+
+    if (event.event === 'charge.success') {
+      const { reference, customer, amount } = event.data;
+      const metadata = event.data.metadata || {};
+
+      // Extract user ID from reference or metadata
+      const userId = metadata.userId || reference.split('_')[1];
+
+      if (userId) {
+        // Update subscription in database
+        const now = new Date().toISOString();
+        const expiryDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // 1 year
+
+        const existingSub = db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').get(userId);
+        if (existingSub) {
+          db.prepare(`
+            UPDATE subscriptions
+            SET plan_type = ?, status = ?, current_period_end = ?, paystack_subscription_id = ?, updated_at = ?
+            WHERE user_id = ?
+          `).run('premium', 'active', expiryDate, reference, now, userId);
+        } else {
+          const subId = uuidv4();
+          db.prepare(`
+            INSERT INTO subscriptions (id, user_id, plan_type, status, current_period_end, paystack_subscription_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(subId, userId, 'premium', 'active', expiryDate, reference, now, now);
+        }
+
+        // Update user subscription type
+        db.prepare('UPDATE users SET subscription_type = ? WHERE id = ?').run('premium', userId);
+
+        logger.info('Subscription upgraded via webhook', {
+          userId,
+          reference,
+          amount: amount / 100 // Convert from kobo to Naira
+        });
+      }
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    logger.error('Webhook processing failed', {
+      error: error.message,
+      body: req.body
+    });
+    res.status(400).json({ error: 'Webhook processing failed' });
   }
 });
 

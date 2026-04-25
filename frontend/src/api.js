@@ -469,35 +469,35 @@ export const audioAPI = {
   getLibrary: () => apiClient.get('/api/audio'),
 
   /**
-   * Get specific audio by type and ID
+   * Get specific audio by ID
    */
-  getAudioByType: (audioType, audioId) => {
-    if (!audioType || !audioId) {
+  getAudioById: (audioId) => {
+    if (!audioId) {
       return Promise.reject({
         status: 400,
-        message: 'Audio type and ID are required.',
+        message: 'Audio ID is required.',
         type: 'validation_error',
         isClientError: true
       });
     }
     
-    return apiClient.get(`/api/audio/${audioType}/${audioId}`);
+    return apiClient.get(`/api/audio/${audioId}`);
   },
 
   /**
    * Start an audio listening session
    */
-  startSession: (audioType, audioId) => {
-    if (!audioType || !audioId) {
+  startSession: (audioId) => {
+    if (!audioId) {
       return Promise.reject({
         status: 400,
-        message: 'Audio type and ID are required.',
+        message: 'Audio ID is required.',
         type: 'validation_error',
         isClientError: true
       });
     }
     
-    return apiClient.post('/api/audio/session/start', { audioType, audioId });
+    return apiClient.post('/api/audio/session/start', { audioId });
   },
 
   /**
