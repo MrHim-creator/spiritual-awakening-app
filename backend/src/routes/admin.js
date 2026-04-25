@@ -1,9 +1,29 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import multer from 'multer';
 import { authMiddleware } from '../middleware/auth.js';
 import { adminMiddleware } from '../middleware/admin.js';
 import db from '../models/database.js';
 import logger from '../utils/logger.js';
+import { uploadAudioToCloudinary } from '../services/cloudinary.js';
+
+const router = express.Router();
+
+// Configure multer for audio file uploads
+const upload = multer({
+  dest: 'temp/', // Temporary storage before Cloudinary upload
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept audio files only
+    if (file.mimetype.startsWith('audio/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only audio files are allowed'));
+    }
+  }
+});
 
 const router = express.Router();
 
@@ -200,6 +220,99 @@ router.delete('/audio/:audioId', authMiddleware, adminMiddleware, (req, res) => 
     logger.error('Error deleting audio file:', error);
     res.status(500).json({
       error: 'Failed to delete audio file',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * UPLOAD audio file to Cloudinary and create record
+ * Admin only
+ */
+router.post('/audio/upload', authMiddleware, adminMiddleware, upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        error: 'No audio file provided',
+        message: 'Please select an audio file to upload'
+      });
+    }
+
+    const { title, description, category, is_premium } = req.body;
+
+    // Validate required fields
+    if (!title) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Title is required',
+        required: ['title']
+      });
+    }
+
+    // Upload to Cloudinary
+    const fileName = `${Date.now()}-${req.file.originalname}`;
+    const cloudinaryResult = await uploadAudioToCloudinary(req.file.path, fileName);
+
+    if (!cloudinaryResult.success) {
+      return res.status(500).json({
+        error: 'Upload failed',
+        message: 'Failed to upload audio to Cloudinary'
+      });
+    }
+
+    // Clean up temp file
+    const fs = await import('fs');
+    fs.unlinkSync(req.file.path);
+
+    // Create database record
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO audio_files (id, title, description, file_url, duration_seconds, category, is_premium, plays, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      title,
+      description || null,
+      cloudinaryResult.url,
+      cloudinaryResult.duration || 0,
+      category || 'Uncategorized',
+      is_premium ? 1 : 0,
+      0,
+      now,
+      now
+    );
+
+    const newAudio = db.prepare('SELECT * FROM audio_files WHERE id = ?').get(id);
+
+    logger.info(`Admin uploaded new audio file: ${title} (${id}) - Cloudinary URL: ${cloudinaryResult.url}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Audio file uploaded and created successfully',
+      audioFile: newAudio,
+      cloudinary: {
+        public_id: cloudinaryResult.public_id,
+        format: cloudinaryResult.format,
+        bytes: cloudinaryResult.bytes
+      }
+    });
+  } catch (error) {
+    logger.error('Error uploading audio file:', error);
+
+    // Clean up temp file if it exists
+    if (req.file && req.file.path) {
+      try {
+        const fs = await import('fs');
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        logger.error('Error cleaning up temp file:', cleanupError);
+      }
+    }
+
+    res.status(500).json({
+      error: 'Failed to upload audio file',
       message: error.message
     });
   }

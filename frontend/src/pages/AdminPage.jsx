@@ -24,6 +24,14 @@ export default function AdminDashboard() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [selectedTab, setSelectedTab] = useState('audio');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    category: 'Meditation',
+    is_premium: false
+  });
 
   const token = localStorage.getItem('authToken');
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -139,6 +147,55 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       alert('❌ Backup failed: ' + err.message);
+    }
+  };
+
+  const handleAudioUpload = async (e) => {
+    e.preventDefault();
+
+    if (!selectedFile) {
+      alert('❌ Please select an audio file');
+      return;
+    }
+
+    if (!formData.title.trim()) {
+      alert('❌ Please enter a title');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append('audio', selectedFile);
+      uploadData.append('title', formData.title);
+      uploadData.append('description', formData.description);
+      uploadData.append('category', formData.category);
+      uploadData.append('is_premium', formData.is_premium.toString());
+
+      const response = await fetch(`${API_BASE}/admin/audio/upload`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: uploadData
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('✅ Audio uploaded to Cloudinary and added successfully!');
+        setShowForm(false);
+        setSelectedFile(null);
+        setFormData({ title: '', description: '', category: 'Meditation', is_premium: false });
+        fetchAllContent(); // Refresh the audio list
+      } else {
+        alert('❌ Upload failed: ' + (data.message || 'Unknown error'));
+      }
+    } catch (error) {
+      alert('❌ Upload error: ' + error.message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -335,6 +392,115 @@ export default function AdminDashboard() {
             >
               <Plus className="w-5 h-5" /> Add Audio
             </button>
+
+            {/* Audio Upload Form */}
+            {showForm && (
+              <div className="mb-6 bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-bold mb-4">Upload New Audio File</h3>
+                <form onSubmit={handleAudioUpload} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Audio File *
+                    </label>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) => setSelectedFile(e.target.files[0])}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      Supported formats: MP3, WAV, M4A, etc. Max 50MB
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => setFormData({...formData, title: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter audio title"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter audio description"
+                      rows="3"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Category
+                      </label>
+                      <select
+                        value={formData.category}
+                        onChange={(e) => setFormData({...formData, category: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="Meditation">Meditation</option>
+                        <option value="Frequency">Frequency</option>
+                        <option value="Guided">Guided</option>
+                        <option value="Music">Music</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Premium Content
+                      </label>
+                      <div className="flex items-center mt-2">
+                        <input
+                          type="checkbox"
+                          checked={formData.is_premium}
+                          onChange={(e) => setFormData({...formData, is_premium: e.target.checked})}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label className="ml-2 text-sm text-gray-700">
+                          Require premium subscription
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={uploading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {uploading ? 'Uploading...' : 'Upload to Cloudinary'}
+                      <Music className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForm(false);
+                        setSelectedFile(null);
+                        setFormData({ title: '', description: '', category: 'Meditation', is_premium: false });
+                      }}
+                      className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
 
             <div className="space-y-2">
               {audioFiles.map(audio => (
