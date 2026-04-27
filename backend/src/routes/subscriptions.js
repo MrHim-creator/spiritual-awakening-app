@@ -67,43 +67,24 @@ router.get('/status', authMiddleware, (req, res) => {
       });
     }
 
-    // Fetch subscription from database
-    const subscription = db.prepare('SELECT * FROM subscriptions WHERE user_id = ?').get(userId);
-
-    if (!subscription) {
-      // Return default free subscription
-      return res.json({
-        success: true,
-        subscription: {
-          userId: userId,
-          plan: 'free',
-          status: 'active',
-          createdAt: new Date(),
-          expiresAt: null, // Free plan doesn't expire
-          features: {
-            unlimitedQuotes: false,
-            unlimitedAudio: false,
-            offlineAccess: false,
-            adFree: false
-          }
-        }
-      });
-    }
-
+    // ALL USERS GET FULL ACCESS - Return premium features for all registered users
     res.json({
       success: true,
       subscription: {
-        id: subscription.id,
-        userId: subscription.user_id,
-        plan: subscription.plan_type,
-        status: subscription.status,
-        createdAt: subscription.created_at,
-        expiresAt: subscription.current_period_end,
+        userId: userId,
+        plan: 'premium', // Everyone gets premium features
+        planType: 'premium',
+        status: 'active',
+        isPremium: true,
+        createdAt: new Date(),
+        expiresAt: null, // Never expires
         features: {
-          unlimitedQuotes: subscription.plan_type === 'premium',
-          unlimitedAudio: subscription.plan_type === 'premium',
-          offlineAccess: subscription.plan_type === 'premium',
-          adFree: subscription.plan_type === 'premium'
+          unlimitedQuotes: true,
+          unlimitedAudio: true,
+          offlineAccess: true,
+          adFree: true,
+          allSolfeggios: true,
+          allNatureSounds: true
         }
       }
     });
@@ -175,7 +156,7 @@ router.post('/activate-free', authMiddleware, (req, res) => {
 });
 
 // ============================================
-// UPGRADE TO PREMIUM (Requires Authentication)
+// UPGRADE TO PREMIUM (Disabled - All Users Have Premium)
 // ============================================
 
 router.post('/upgrade-to-premium', authMiddleware, async (req, res) => {
@@ -188,26 +169,16 @@ router.post('/upgrade-to-premium', authMiddleware, async (req, res) => {
       });
     }
 
-    // Get user details for payment
-    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Premium plan: ₦9.99/month = 999 kobo
-    const amount = 99900; // ₦9,990/year in kobo (discounted annual pricing)
-    const reference = `upgrade_${userId}_${Date.now()}`;
-
-    // Initialize Paystack transaction
-    const paymentResult = await paystackService.initializeTransaction({
-      email: user.email,
-      amount: amount,
-      reference: reference,
-      callback_url: `${process.env.FRONTEND_URL}/subscription/success`,
-      metadata: {
+    // FEATURE DISABLED - All users already have premium access
+    // Just return success message
+    res.json({
+      success: true,
+      message: 'All features are already unlocked for your account!',
+      subscription: {
         userId: userId,
-        planType: 'premium',
-        description: 'Premium subscription upgrade'
+        plan: 'premium',
+        status: 'active',
+        isPremium: true
       }
     });
 

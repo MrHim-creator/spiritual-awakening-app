@@ -64,8 +64,7 @@ export default function AudioPlayer() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  const isPremium = currentSubscription?.plan === 'premium';
-  
+  // ALL USERS GET ALL CONTENT - No premium restrictions
   // Handle both old structure (audioLibrary.solfeggio) and new structure (flat array)
   let solfeggios = [];
   let natureSounds = [];
@@ -80,9 +79,9 @@ export default function AudioPlayer() {
     natureSounds = audioLibrary.nature || [];
   }
 
-  // Apply free plan restrictions
-  const availableSolfeggios = isPremium ? solfeggios : solfeggios.slice(0, 3);
-  const availableNatureSounds = isPremium ? natureSounds : natureSounds.slice(0, 3);
+  // All users have access to all content
+  const availableSolfeggios = solfeggios;
+  const availableNatureSounds = natureSounds;
 
   const displayedAudios = activeTab === 'solfeggio' ? availableSolfeggios : availableNatureSounds;
 
@@ -108,7 +107,7 @@ export default function AudioPlayer() {
               : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          Solfeggio Frequencies {!isPremium && solfeggios.length > 0 && `(${Math.min(3, solfeggios.length)}/${solfeggios.length})`}
+          Solfeggio Frequencies {solfeggios.length > 0 && `(${solfeggios.length})`}
         </button>
         <button
           onClick={() => setActiveTab('nature')}
@@ -118,7 +117,7 @@ export default function AudioPlayer() {
               : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          Nature Sounds {!isPremium && natureSounds.length > 0 && `(${Math.min(3, natureSounds.length)}/${natureSounds.length})`}
+          Nature Sounds {natureSounds.length > 0 && `(${natureSounds.length})`}
         </button>
       </div>
 
@@ -227,11 +226,11 @@ export default function AudioPlayer() {
         )}
       </div>
 
-      {/* Premium Notice */}
-      {!isPremium && (solfeggios.length > 0 || natureSounds.length > 0) && (
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600 rounded">
-          <p className="text-sm text-blue-700 dark:text-blue-300">
-            <strong>💡 Upgrade to Premium:</strong> Unlock all {solfeggios.length} Solfeggio frequencies and {natureSounds.length} nature sounds!
+      {/* All Content Available */}
+      {(solfeggios.length > 0 || natureSounds.length > 0) && (
+        <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/20 border-l-4 border-green-600 rounded">
+          <p className="text-sm text-green-700 dark:text-green-300">
+            <strong>✨ Enjoy All Content:</strong> You have access to all {solfeggios.length} Solfeggio frequencies and {natureSounds.length} nature sounds!
           </p>
         </div>
       )}

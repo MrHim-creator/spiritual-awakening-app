@@ -46,7 +46,8 @@ export default function DashboardPage() {
     }
   };
 
-  const isPremium = currentSubscription?.isPremium;
+  // All users have premium features - no restrictions
+  const isPremium = true;
 
   if (isLoading) {
     return (
@@ -72,46 +73,17 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Subscription Banner */}
-        {isPremium ? (
-          <div className="mb-8 p-6 bg-gradient-to-r from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 border-l-4 border-yellow-500 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-200">
-                  👑 Premium Member
-                </h3>
-                <p className="text-yellow-800 dark:text-yellow-300">
-                  Enjoy all features: unlimited quotes, all Solfeggio frequencies, ad-free experience
-                </p>
-              </div>
-              <Link
-                to="/subscription"
-                className="px-6 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-semibold transition"
-              >
-                Manage
-              </Link>
-            </div>
+        {/* Welcome Banner - All Users Have Full Access */}
+        <div className="mb-8 p-6 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 border-l-4 border-green-500 rounded-lg">
+          <div>
+            <h3 className="text-lg font-bold text-green-900 dark:text-green-200">
+              ✨ Welcome to Your Spiritual Journey
+            </h3>
+            <p className="text-green-800 dark:text-green-300">
+              You have full access to all features: unlimited quotes, all Solfeggio frequencies, all nature sounds, and more!
+            </p>
           </div>
-        ) : (
-          <div className="mb-8 p-6 bg-gradient-to-r from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 border-l-4 border-blue-500 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-blue-900 dark:text-blue-200">
-                  ⭐ Free Plan
-                </h3>
-                <p className="text-blue-800 dark:text-blue-300">
-                  Upgrade to Premium for unlimited access to all features
-                </p>
-              </div>
-              <Link
-                to="/subscription"
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition"
-              >
-                Upgrade Now
-              </Link>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Stats Grid */}
         <div className="grid md:grid-cols-4 gap-6 mb-12">

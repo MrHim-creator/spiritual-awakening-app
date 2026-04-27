@@ -140,20 +140,8 @@ router.post('/session/start', authMiddleware, (req, res) => {
       });
     }
 
-    // Check if user has access to premium audio
-    if (audio.is_premium === 1) {
-      const userSubscription = db.prepare(`
-        SELECT status FROM subscriptions
-        WHERE user_id = ? AND status = 'active'
-      `).get(userId);
-
-      if (!userSubscription) {
-        return res.status(403).json({
-          error: 'Premium content requires active subscription',
-          audioId: audioId
-        });
-      }
-    }
+    // ALL AUDIO IS FREE - No subscription check needed
+    // Removed premium gating - all users have full access
 
     // Create session in database
     const sessionId = uuidv4();

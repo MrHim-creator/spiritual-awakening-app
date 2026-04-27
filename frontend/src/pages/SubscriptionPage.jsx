@@ -6,32 +6,15 @@ import { subscriptionAPI, handleApiError } from '../api';
 export default function SubscriptionPage() {
   const { user } = useAuthStore();
   const { addNotification } = useAppStore();
-  const { currentSubscription, setCurrentSubscription } = useSubscriptionStore();
-  const [plans, setPlans] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [processingPlan, setProcessingPlan] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
+  // All users have full access - simplified component
   useEffect(() => {
-    loadSubscriptionData();
+    addNotification({
+      type: 'success',
+      message: '✨ Welcome! You have full access to all features.'
+    });
   }, []);
-
-  const loadSubscriptionData = async () => {
-    try {
-      setIsLoading(true);
-      const plansRes = await subscriptionAPI.getPlans();
-      setPlans(plansRes.plans);
-
-      const statusRes = await subscriptionAPI.getStatus();
-      setCurrentSubscription(statusRes);
-    } catch (error) {
-      addNotification({
-        type: 'error',
-        message: 'Failed to load subscription data'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleActivateFree = async () => {
     setProcessingPlan('free');
@@ -97,68 +80,140 @@ export default function SubscriptionPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader className="animate-spin mx-auto mb-4" size={40} />
-          <p className="text-gray-600 dark:text-gray-400">Loading plans...</p>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );
   }
 
-  const isPremium = currentSubscription?.isPremium;
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Choose Your Path 🙏
+            ✨ Completely Free App
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400">
-            Both plans are completely free while we build. Upgrade anytime to unlock all features.
+            Register once and enjoy everything – forever free, no payments needed.
           </p>
         </div>
 
-        {/* Current Plan Banner */}
-        {currentSubscription?.subscription && (
-          <div className={`mb-12 p-6 rounded-lg border-l-4 ${
-            isPremium
-              ? 'bg-gradient-to-r from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 border-yellow-500'
-              : 'bg-gradient-to-r from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 border-blue-500'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className={`text-2xl font-bold mb-2 ${
-                  isPremium 
-                    ? 'text-yellow-900 dark:text-yellow-200' 
-                    : 'text-blue-900 dark:text-blue-200'
-                }`}>
-                  {isPremium ? '👑 You have Premium' : '⭐ You have Free Plan'}
-                </h2>
-                <p className={isPremium 
-                  ? 'text-yellow-800 dark:text-yellow-300' 
-                  : 'text-blue-800 dark:text-blue-300'
-                }>
-                  {isPremium 
-                    ? 'Enjoy unlimited access to all features' 
-                    : 'Enjoy all basic features. Upgrade anytime!'}
-                </p>
-              </div>
-              {isPremium && (
-                <button
-                  onClick={handleDowngradeToFree}
-                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition"
-                >
-                  Downgrade
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Main Message */}
+        <div className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 p-8 rounded-lg border-l-4 border-green-600 mb-12">
+          <h2 className="text-2xl font-bold text-green-900 dark:text-green-200 mb-2">
+            🎉 Great News!
+          </h2>
+          <p className="text-green-800 dark:text-green-300 text-lg">
+            You have full access to everything on this app. All Solfeggio Frequencies, Nature Sounds, Quotes, and Features are completely free. No ads, no payments, no premium tiers.
+          </p>
+        </div>
 
-        {/* Plans Grid */}
-        <div className="grid md:grid-cols-2 gap-8 mb-12">
-          {/* Free Plan */}
-          <div className={`rounded-lg shadow-lg overflow-hidden transition transform hover:scale-105 ${
+        {/* Features Grid */}
+        <div className="grid md:grid-cols-2 gap-6 mb-12">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <span className="text-2xl">✨</span> Everything Included
+            </h3>
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">All 8 Solfeggio Frequencies</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">All Nature Sounds</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">25+ Inspirational Quotes</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">Unlimited Favorites</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">Full Meditation Tracking</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">Ad-Free Experience</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <span className="text-2xl">🔒</span> Security
+            </h3>
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">Secure Authentication</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">Password-Protected Account</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">Personal Data Stored Safely</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">No Third-Party Tracking</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">HTTPS Encrypted Connection</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="text-green-600 flex-shrink-0 mt-1" size={20} />
+                <span className="text-gray-700 dark:text-gray-300">Regular Backups</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* How It Works */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-8 rounded-lg border-l-4 border-blue-600 mb-12">
+          <h2 className="text-2xl font-bold text-blue-900 dark:text-blue-200 mb-4">
+            💡 How It Works
+          </h2>
+          <ol className="space-y-3 text-blue-800 dark:text-blue-300">
+            <li className="flex items-start gap-3">
+              <span className="font-bold text-lg">1.</span>
+              <span>Register your account with a username, email, and password</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="font-bold text-lg">2.</span>
+              <span>Log in to your account anytime, anywhere</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="font-bold text-lg">3.</span>
+              <span>Access all features immediately – nothing to buy or unlock</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="font-bold text-lg">4.</span>
+              <span>Enjoy unlimited meditation, quotes, and spiritual content forever</span>
+            </li>
+          </ol>
+        </div>
+
+        {/* Call to Action */}
+        <div className="text-center">
+          <Link
+            to="/dashboard"
+            className="inline-block px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-lg transition"
+          >
+            Go to Dashboard 🚀
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
             !isPremium
               ? 'ring-4 ring-blue-600 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20'
               : 'bg-white dark:bg-gray-800'

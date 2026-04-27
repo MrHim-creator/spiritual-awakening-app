@@ -70,11 +70,9 @@ export default function Navbar() {
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {user.username}
                   </p>
-                  {currentSubscription?.planType && (
-                    <p className="text-xs text-purple-600 dark:text-purple-400">
-                      {currentSubscription.planType === 'premium' ? '👑 Premium' : 'Free'}
-                    </p>
-                  )}
+                  <p className="text-xs text-purple-600 dark:text-purple-400">
+                    ✨ Full Access
+                  </p>
                 </div>
                 <button
                   onClick={handleLogout}
