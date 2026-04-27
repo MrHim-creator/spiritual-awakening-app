@@ -6,8 +6,6 @@ import logger from '../utils/logger.js';
 
 const router = express.Router();
 
-const router = express.Router();
-
 // ============================================
 // GET AUDIO LIBRARY (Public)
 // ============================================

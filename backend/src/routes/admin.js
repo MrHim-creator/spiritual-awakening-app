@@ -25,8 +25,6 @@ const upload = multer({
   }
 });
 
-const router = express.Router();
-
 // ============================================
 // ADMIN AUDIO FILES MANAGEMENT
 // ============================================

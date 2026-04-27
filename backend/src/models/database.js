@@ -270,6 +270,7 @@ export const initializeDatabase = () => {
 
     console.log('✓ Database seeded with 4 audio files');
   }
+};
 
 // Initialize on import
 initializeDatabase();

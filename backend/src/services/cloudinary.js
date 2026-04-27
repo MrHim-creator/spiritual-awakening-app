@@ -20,7 +20,7 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
-import logger from './logger.js';
+import logger from '../utils/logger.js';
 
 const CLOUDINARY_BASE = 'https://api.cloudinary.com/v1_1';
 
