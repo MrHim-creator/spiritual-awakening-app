@@ -3,7 +3,16 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import logger from './utils/logger.js';
+
+// Get the directory of the current file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from backend/.env
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // Import your actual route files
 import authRouter from './routes/auth.js';
@@ -13,9 +22,6 @@ import adsRouter from './routes/ads.js';
 import audioRouter from './routes/audio.js';
 import adminRouter from './routes/admin.js';
 import backupRouter from './routes/backup.js';
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Music, BookOpen, Zap, TrendingUp, Heart, Play } from 'lucide-react';
+import { Music, BookOpen, TrendingUp, Heart, Play } from 'lucide-react';
 import { useAuthStore, useQuoteStore, useAudioStore, useSubscriptionStore } from '../store';
 import { quotesAPI, audioAPI, subscriptionAPI } from '../api';
 import AudioPlayer from '../components/AudioPlayer';
@@ -172,9 +172,9 @@ export default function DashboardPage() {
               Quick Actions
             </h2>
             <div className="space-y-4">
-              <Link
-                to="/subscription"
-                className="block p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition"
+              <button
+                onClick={() => document.getElementById('audio-player-scroll')?.scrollIntoView({ behavior: 'smooth' })}
+                className="block w-full p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition text-left hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Music size={20} className="text-purple-600" />
@@ -183,11 +183,11 @@ export default function DashboardPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Start a meditation session
                 </p>
-              </Link>
+              </button>
 
               <Link
-                to="/subscription"
-                className="block p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition"
+                to="/profile"
+                className="block p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Heart size={20} className="text-red-600" />
@@ -200,7 +200,7 @@ export default function DashboardPage() {
 
               <Link
                 to="/profile"
-                className="block p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition"
+                className="block p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <BookOpen size={20} className="text-blue-600" />
@@ -210,25 +210,12 @@ export default function DashboardPage() {
                   Edit your account
                 </p>
               </Link>
-
-              <Link
-                to="/subscription"
-                className="block p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg shadow-md hover:shadow-lg transition"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Zap size={20} />
-                  <h3 className="font-bold">Premium Features</h3>
-                </div>
-                <p className="text-sm opacity-90">
-                  Unlock all content
-                </p>
-              </Link>
             </div>
           </div>
         </div>
 
         {/* AUDIO PLAYER SECTION */}
-        <div className="mb-12">
+        <div className="mb-12" id="audio-player-scroll">
           <AudioPlayer />
         </div>
 
