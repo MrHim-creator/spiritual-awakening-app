@@ -29,21 +29,21 @@ router.post('/register', validate('register'), async (req, res) => {
     const now = new Date().toISOString();
 
     db.prepare(`
-      INSERT INTO users (id, email, username, password_hash, subscription_type, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, email, username, passwordHash, 'free', now, now);
+      INSERT INTO users (id, email, username, password_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(userId, email, username, passwordHash, now, now);
 
     // Create token
     const token = createToken(userId);
 
-    // Auto-create free subscription
+    // Auto-create free subscription record
     const subId = uuidv4();
     const expiryDate = new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000).toISOString();
     
     db.prepare(`
-      INSERT INTO subscriptions (id, user_id, stripe_subscription_id, plan_type, status, current_period_end, created_at)
+      INSERT INTO subscriptions (id, user_id, plan_type, status, current_period_end, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(subId, userId, 'free-' + uuidv4(), 'free', 'active', expiryDate, now);
+    `).run(subId, userId, 'free', 'active', expiryDate, now, now);
 
     res.status(201).json({
       success: true,
@@ -93,7 +93,7 @@ router.post('/login', validate('login'), async (req, res) => {
         id: user.id,
         email: user.email,
         username: user.username,
-        subscriptionType: user.subscription_type
+        subscriptionType: 'free'
       }
     });
   } catch (error) {
@@ -108,7 +108,7 @@ router.post('/login', validate('login'), async (req, res) => {
  */
 router.get('/me', authMiddleware, (req, res) => {
   try {
-    const user = db.prepare('SELECT id, email, username, subscription_type, bio FROM users WHERE id = ?').get(req.user.userId);
+    const user = db.prepare('SELECT id, email, username, bio FROM users WHERE id = ?').get(req.user.userId);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -116,7 +116,10 @@ router.get('/me', authMiddleware, (req, res) => {
 
     res.json({
       success: true,
-      user
+      user: {
+        ...user,
+        subscriptionType: 'free'
+      }
     });
   } catch (error) {
     console.error('Get user error:', error);
@@ -166,12 +169,15 @@ router.put('/me', authMiddleware, (req, res) => {
 
     db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
-    const user = db.prepare('SELECT id, email, username, subscription_type, bio FROM users WHERE id = ?').get(userId);
+    const user = db.prepare('SELECT id, email, username, bio FROM users WHERE id = ?').get(userId);
 
     res.json({
       success: true,
       message: 'Profile updated',
-      user
+      user: {
+        ...user,
+        subscriptionType: 'free'
+      }
     });
   } catch (error) {
     console.error('Update user error:', error);

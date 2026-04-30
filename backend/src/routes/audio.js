@@ -14,7 +14,7 @@ router.get('/', optionalAuthMiddleware, (req, res) => {
   try {
     // Fetch audio files from database
     const audioFiles = db.prepare(`
-      SELECT id, title, description, file_url, duration_seconds, category, is_premium, plays
+      SELECT id, title, description, file_url, duration_seconds, category, plays
       FROM audio_files
       ORDER BY created_at DESC
     `).all();
@@ -27,7 +27,6 @@ router.get('/', optionalAuthMiddleware, (req, res) => {
       duration: audio.duration_seconds,
       category: audio.category,
       description: audio.description,
-      is_premium: audio.is_premium === 1,
       plays: audio.plays
     }));
 
@@ -61,7 +60,7 @@ router.get('/:audioId', optionalAuthMiddleware, (req, res) => {
     }
 
     const audio = db.prepare(`
-      SELECT id, title, description, file_url, duration_seconds, category, is_premium, plays
+      SELECT id, title, description, file_url, duration_seconds, category, plays
       FROM audio_files
       WHERE id = ?
     `).get(audioId);
@@ -82,7 +81,6 @@ router.get('/:audioId', optionalAuthMiddleware, (req, res) => {
       category: audio.category,
       description: audio.description,
       file_url: audio.file_url,
-      is_premium: audio.is_premium === 1,
       plays: audio.plays
     };
 
@@ -128,7 +126,7 @@ router.post('/session/start', authMiddleware, (req, res) => {
 
     // Fetch audio from database
     const audio = db.prepare(`
-      SELECT id, title, category, is_premium, duration_seconds
+      SELECT id, title, category, duration_seconds
       FROM audio_files
       WHERE id = ?
     `).get(audioId);

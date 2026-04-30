@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Volume2, X } from 'lucide-react';
-import { useAudioStore, useSubscriptionStore } from '../store';
+import { useAudioStore } from '../store';
 import { audioAPI } from '../api';
 
 export default function AudioPlayer() {
   const { audioLibrary, currentAudio, isPlaying, setIsPlaying, setCurrentAudio } = useAudioStore();
-  const { currentSubscription } = useSubscriptionStore();
   const [sessionId, setSessionId] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [activeTab, setActiveTab] = useState('solfeggio'); // solfeggio or nature

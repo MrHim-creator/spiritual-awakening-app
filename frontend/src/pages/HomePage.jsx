@@ -62,10 +62,10 @@ export default function HomePage() {
                   Go to Dashboard
                 </Link>
                 <Link
-                  to="/subscription"
+                  to="/access"
                   className="px-8 py-3 bg-purple-700 hover:bg-purple-800 font-bold rounded-lg transition border-2 border-white"
                 >
-                  Upgrade to Premium
+                  Explore Free Access
                 </Link>
               </>
             ) : (
@@ -176,7 +176,7 @@ export default function HomePage() {
             Start Your Spiritual Journey Today
           </h2>
           <p className="text-xl mb-8 opacity-90">
-            Free to use, forever. Premium features available when you're ready.
+            Free to use, forever. All features are unlocked for every registered user.
           </p>
           <Link
             to={user ? '/dashboard' : '/register'}

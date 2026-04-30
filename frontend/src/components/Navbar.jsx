@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X, Moon, Sun, LogOut } from 'lucide-react';
-import { useAuthStore, useAppStore, useSubscriptionStore } from '../store';
+import { useAuthStore, useAppStore } from '../store';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useAppStore();
-  const { currentSubscription } = useSubscriptionStore();
 
   const handleLogout = () => {
     logout();
@@ -19,7 +18,6 @@ export default function Navbar() {
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Dashboard', path: '/dashboard', protected: true },
-    { label: 'Subscription', path: '/subscription', protected: true },
     { label: 'Profile', path: '/profile', protected: true }
   ];
 

@@ -427,37 +427,6 @@ export const quotesAPI = {
 };
 
 // ============================================
-// SUBSCRIPTIONS API ENDPOINTS
-// ============================================
-
-export const subscriptionAPI = {
-  /**
-   * Get available subscription plans
-   */
-  getPlans: () => apiClient.get('/api/subscriptions/plans'),
-
-  /**
-   * Activate free subscription (requires authentication)
-   */
-  activateFree: () => apiClient.post('/api/subscriptions/activate-free'),
-
-  /**
-   * Upgrade to premium subscription (requires authentication)
-   * This typically redirects to payment processor
-   */
-  upgradeToPremium: () => apiClient.post('/api/subscriptions/upgrade-to-premium'),
-
-  /**
-   * Get user's current subscription status (requires authentication)
-   */
-  getStatus: () => apiClient.get('/api/subscriptions/status'),
-
-  /**
-   * Downgrade from premium to free (requires authentication)
-   */
-  downgradeToFree: () => apiClient.post('/api/subscriptions/downgrade-to-free')
-};
-
 // ============================================
 // AUDIO API ENDPOINTS
 // ============================================

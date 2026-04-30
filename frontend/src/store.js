@@ -110,57 +110,6 @@ export const useAudioStore = create((set) => ({
 }));
 
 // ============================================
-// SUBSCRIPTION STORE - FIXED
-// ============================================
-export const useSubscriptionStore = create((set) => ({
-  plans: [],
-  
-  // ✅ FIXED: Initialize with proper structure
-  // AudioPlayer checks: currentSubscription?.plan === 'premium'
-  // So we need the 'plan' property!
-  currentSubscription: {
-    userId: null,
-    plan: 'free',        // ← This is what AudioPlayer checks!
-    status: 'inactive',
-    createdAt: null,
-    expiresAt: null,
-    features: {
-      unlimitedQuotes: false,
-      unlimitedAudio: false,
-      offlineAccess: false,
-      adFree: false
-    }
-  },
-  isPremium: false,
-  isLoading: false,
-
-  setPlans: (plans) => set({ plans }),
-  
-  // ✅ IMPROVED: Better setter that auto-updates isPremium
-  setCurrentSubscription: (subscription) => {
-    const isPremium = subscription?.plan === 'premium';
-    set({ 
-      currentSubscription: subscription || {
-        plan: 'free',
-        status: 'inactive',
-        createdAt: null,
-        expiresAt: null,
-        features: {
-          unlimitedQuotes: false,
-          unlimitedAudio: false,
-          offlineAccess: false,
-          adFree: false
-        }
-      },
-      isPremium: isPremium
-    });
-  },
-  
-  setIsPremium: (isPremium) => set({ isPremium }),
-  setLoading: (isLoading) => set({ isLoading })
-}));
-
-// ============================================
 // APP STORE (General app state)
 // ============================================
 export const useAppStore = create((set) => ({

@@ -29,8 +29,7 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    category: 'Meditation',
-    is_premium: false
+    category: 'Meditation'
   });
 
   const token = localStorage.getItem('authToken');
@@ -171,7 +170,6 @@ export default function AdminDashboard() {
       uploadData.append('title', formData.title);
       uploadData.append('description', formData.description);
       uploadData.append('category', formData.category);
-      uploadData.append('is_premium', formData.is_premium.toString());
 
       const response = await fetch(`${API_BASE}/admin/audio/upload`, {
         method: 'POST',
@@ -187,7 +185,7 @@ export default function AdminDashboard() {
         alert('✅ Audio uploaded to Cloudinary and added successfully!');
         setShowForm(false);
         setSelectedFile(null);
-        setFormData({ title: '', description: '', category: 'Meditation', is_premium: false });
+        setFormData({ title: '', description: '', category: 'Meditation' });
         fetchAllContent(); // Refresh the audio list
       } else {
         alert('❌ Upload failed: ' + (data.message || 'Unknown error'));
@@ -272,17 +270,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Premium Users */}
-          <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-lg text-white shadow-lg">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-green-100">Premium Users</p>
-                <p className="text-3xl font-bold">{stats.users.premium}</p>
-              </div>
-              <Radio className="w-12 h-12 opacity-20" />
-            </div>
-          </div>
-
           {/* Content Items */}
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-lg text-white shadow-lg">
             <div className="flex justify-between items-center">
@@ -310,27 +297,11 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* User Distribution Pie Chart */}
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-xl font-bold mb-4">User Distribution</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={[
-                    { name: 'Premium', value: stats.users.premium },
-                    { name: 'Free', value: stats.users.free }
-                  ]}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  <Cell fill="#3B82F6" />
-                  <Cell fill="#10B981" />
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <h3 className="text-xl font-bold mb-4">Total Users</h3>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-blue-600">{stats.users.total}</p>
+              <p className="text-gray-600 mt-2">Registered Users</p>
+            </div>
           </div>
 
           {/* Content Overview */}
@@ -458,23 +429,6 @@ export default function AdminDashboard() {
                         <option value="Other">Other</option>
                       </select>
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Premium Content
-                      </label>
-                      <div className="flex items-center mt-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.is_premium}
-                          onChange={(e) => setFormData({...formData, is_premium: e.target.checked})}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label className="ml-2 text-sm text-gray-700">
-                          Require premium subscription
-                        </label>
-                      </div>
-                    </div>
                   </div>
 
                   <div className="flex gap-2">
@@ -491,7 +445,7 @@ export default function AdminDashboard() {
                       onClick={() => {
                         setShowForm(false);
                         setSelectedFile(null);
-                        setFormData({ title: '', description: '', category: 'Meditation', is_premium: false });
+                        setFormData({ title: '', description: '', category: 'Meditation' });
                       }}
                       className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
                     >
@@ -594,7 +548,6 @@ export default function AdminDashboard() {
             <tr>
               <th className="px-6 py-3 text-left">Email</th>
               <th className="px-6 py-3 text-left">Username</th>
-              <th className="px-6 py-3 text-left">Subscription</th>
               <th className="px-6 py-3 text-left">Status</th>
             </tr>
           </thead>
@@ -603,11 +556,6 @@ export default function AdminDashboard() {
               <tr key={user.id} className="border-t hover:bg-gray-50">
                 <td className="px-6 py-3">{user.email}</td>
                 <td className="px-6 py-3">{user.username}</td>
-                <td className="px-6 py-3">
-                  <span className={`px-2 py-1 rounded text-white text-sm ${user.subscription_type === 'premium' ? 'bg-green-600' : 'bg-gray-400'}`}>
-                    {user.subscription_type}
-                  </span>
-                </td>
                 <td className="px-6 py-3">
                   {user.is_admin === 1 ? (
                     <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">👑 Admin</span>

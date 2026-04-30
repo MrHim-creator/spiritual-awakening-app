@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Music, BookOpen, TrendingUp, Heart, Play } from 'lucide-react';
-import { useAuthStore, useQuoteStore, useAudioStore, useSubscriptionStore } from '../store';
-import { quotesAPI, audioAPI, subscriptionAPI } from '../api';
+import { Music, BookOpen, TrendingUp, Heart, Play, Zap } from 'lucide-react';
+import { useAuthStore, useQuoteStore, useAudioStore } from '../store';
+import { quotesAPI, audioAPI } from '../api';
 import AudioPlayer from '../components/AudioPlayer';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const { currentQuote, favorites, setCurrentQuote, setFavorites } = useQuoteStore();
   const { stats, setStats, audioLibrary, setAudioLibrary } = useAudioStore();
-  const { currentSubscription, setCurrentSubscription } = useSubscriptionStore();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -35,10 +34,6 @@ export default function DashboardPage() {
       // Load audio stats
       const statsRes = await audioAPI.getStats();
       setStats(statsRes.stats);
-
-      // Load subscription status
-      const subRes = await subscriptionAPI.getStatus();
-      setCurrentSubscription(subRes);
     } catch (error) {
       console.error('Error loading dashboard:', error);
     } finally {

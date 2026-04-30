@@ -17,7 +17,6 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 // Import your actual route files
 import authRouter from './routes/auth.js';
 import quotesRouter from './routes/quotes.js';
-import subscriptionsRouter from './routes/subscriptions.js';
 import adsRouter from './routes/ads.js';
 import audioRouter from './routes/audio.js';
 import adminRouter from './routes/admin.js';
@@ -62,13 +61,15 @@ app.use(helmet());
 // CORS CONFIGURATION - CRITICAL FOR FRONTEND
 // ============================================
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:3000'
-];
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [process.env.FRONTEND_URL]
+  : [
+      process.env.FRONTEND_URL,
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000'
+    ];
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -147,9 +148,6 @@ app.use('/api/auth', authRouter);
 // Quotes routes
 app.use('/api/quotes', quotesRouter);
 
-// Subscriptions routes
-app.use('/api/subscriptions', subscriptionsRouter);
-
 // Ads routes
 app.use('/api/ads', adsRouter);
 
@@ -165,7 +163,6 @@ app.use('/api/backup', backupRouter);
 console.log('✅ All routes registered:');
 console.log('   - /api/auth (authRouter)');
 console.log('   - /api/quotes (quotesRouter)');
-console.log('   - /api/subscriptions (subscriptionsRouter)');
 console.log('   - /api/ads (adsRouter)');
 console.log('   - /api/audio (audioRouter)');
 console.log('   - /api/admin (adminRouter - protected)');

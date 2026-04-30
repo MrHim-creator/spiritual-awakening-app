@@ -37,7 +37,7 @@ router.get('/audio', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const audioFiles = db.prepare(`
       SELECT id, title, description, file_url, duration_seconds, 
-             category, is_premium, plays, created_at, updated_at
+             category, plays, created_at, updated_at
       FROM audio_files
       ORDER BY created_at DESC
     `).all();
@@ -64,7 +64,7 @@ router.get('/audio', authMiddleware, adminMiddleware, (req, res) => {
  */
 router.post('/audio', authMiddleware, adminMiddleware, (req, res) => {
   try {
-    const { title, description, file_url, duration_seconds, category, is_premium } = req.body;
+    const { title, description, file_url, duration_seconds, category } = req.body;
 
     // Validate required fields
     if (!title || !file_url) {
@@ -79,8 +79,8 @@ router.post('/audio', authMiddleware, adminMiddleware, (req, res) => {
     const now = new Date().toISOString();
 
     db.prepare(`
-      INSERT INTO audio_files (id, title, description, file_url, duration_seconds, category, is_premium, plays, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO audio_files (id, title, description, file_url, duration_seconds, category, plays, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       title,
@@ -88,7 +88,6 @@ router.post('/audio', authMiddleware, adminMiddleware, (req, res) => {
       file_url,
       duration_seconds || 0,
       category || 'Uncategorized',
-      is_premium ? 1 : 0,
       0,
       now,
       now
@@ -119,7 +118,7 @@ router.post('/audio', authMiddleware, adminMiddleware, (req, res) => {
 router.put('/audio/:audioId', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const { audioId } = req.params;
-    const { title, description, file_url, duration_seconds, category, is_premium } = req.body;
+    const { title, description, file_url, duration_seconds, category } = req.body;
 
     // Check if audio exists
     const audio = db.prepare('SELECT id FROM audio_files WHERE id = ?').get(audioId);
@@ -153,10 +152,6 @@ router.put('/audio/:audioId', authMiddleware, adminMiddleware, (req, res) => {
     if (category !== undefined) {
       updates.push('category = ?');
       values.push(category);
-    }
-    if (is_premium !== undefined) {
-      updates.push('is_premium = ?');
-      values.push(is_premium ? 1 : 0);
     }
 
     if (updates.length === 0) {
@@ -236,7 +231,7 @@ router.post('/audio/upload', authMiddleware, adminMiddleware, upload.single('aud
       });
     }
 
-    const { title, description, category, is_premium } = req.body;
+    const { title, description, category } = req.body;
 
     // Validate required fields
     if (!title) {
@@ -267,8 +262,8 @@ router.post('/audio/upload', authMiddleware, adminMiddleware, upload.single('aud
     const now = new Date().toISOString();
 
     db.prepare(`
-      INSERT INTO audio_files (id, title, description, file_url, duration_seconds, category, is_premium, plays, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO audio_files (id, title, description, file_url, duration_seconds, category, plays, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       title,
@@ -276,7 +271,6 @@ router.post('/audio/upload', authMiddleware, adminMiddleware, upload.single('aud
       cloudinaryResult.url,
       cloudinaryResult.duration || 0,
       category || 'Uncategorized',
-      is_premium ? 1 : 0,
       0,
       now,
       now
@@ -327,7 +321,7 @@ router.post('/audio/upload', authMiddleware, adminMiddleware, upload.single('aud
 router.get('/quotes', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const quotes = db.prepare(`
-      SELECT id, text, author, category, source, is_premium, views, created_at
+      SELECT id, text, author, category, source, views, created_at
       FROM quotes
       ORDER BY created_at DESC
     `).all();
@@ -354,7 +348,7 @@ router.get('/quotes', authMiddleware, adminMiddleware, (req, res) => {
  */
 router.post('/quotes', authMiddleware, adminMiddleware, (req, res) => {
   try {
-    const { text, author, category, source, is_premium } = req.body;
+    const { text, author, category, source } = req.body;
 
     if (!text || !author) {
       return res.status(400).json({
@@ -367,15 +361,14 @@ router.post('/quotes', authMiddleware, adminMiddleware, (req, res) => {
     const id = uuidv4();
 
     db.prepare(`
-      INSERT INTO quotes (id, text, author, category, source, is_premium, views)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO quotes (id, text, author, category, source, views)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       id,
       text,
       author,
       category || 'wisdom',
       source || null,
-      is_premium ? 1 : 0,
       0
     );
 
@@ -404,7 +397,7 @@ router.post('/quotes', authMiddleware, adminMiddleware, (req, res) => {
 router.put('/quotes/:quoteId', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const { quoteId } = req.params;
-    const { text, author, category, source, is_premium } = req.body;
+    const { text, author, category, source } = req.body;
 
     const quote = db.prepare('SELECT id FROM quotes WHERE id = ?').get(quoteId);
     if (!quote) {
@@ -432,10 +425,6 @@ router.put('/quotes/:quoteId', authMiddleware, adminMiddleware, (req, res) => {
     if (source !== undefined) {
       updates.push('source = ?');
       values.push(source);
-    }
-    if (is_premium !== undefined) {
-      updates.push('is_premium = ?');
-      values.push(is_premium ? 1 : 0);
     }
 
     if (updates.length === 0) {
@@ -700,15 +689,20 @@ router.delete('/ads/:adId', authMiddleware, adminMiddleware, (req, res) => {
 router.get('/users', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const users = db.prepare(`
-      SELECT id, email, username, subscription_type, is_admin, created_at
+      SELECT id, email, username, is_admin, created_at
       FROM users
       ORDER BY created_at DESC
     `).all();
 
+    const usersWithSubscription = users.map((user) => ({
+      ...user,
+      subscription_type: 'free'
+    }));
+
     const stats = {
-      total_users: users.length,
-      premium_users: users.filter(u => u.subscription_type === 'premium').length,
-      admins: users.filter(u => u.is_admin === 1).length
+      total_users: usersWithSubscription.length,
+      premium_users: 0,
+      admins: usersWithSubscription.filter(u => u.is_admin === 1).length
     };
 
     logger.info(`Admin retrieved user list: ${users.length} total`);
@@ -716,7 +710,7 @@ router.get('/users', authMiddleware, adminMiddleware, (req, res) => {
     res.json({
       success: true,
       stats: stats,
-      users: users
+      users: usersWithSubscription
     });
   } catch (error) {
     logger.error('Error fetching admin users:', error);
@@ -813,7 +807,7 @@ router.post('/users/:userId/revoke-admin', authMiddleware, adminMiddleware, (req
 router.get('/stats/dashboard', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-    const premiumUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE subscription_type = 'premium'").get().count;
+    const premiumUsers = db.prepare("SELECT COUNT(*) as count FROM subscriptions WHERE plan_type = 'premium'").get().count;
     const totalQuotes = db.prepare('SELECT COUNT(*) as count FROM quotes').get().count;
     const totalAudioFiles = db.prepare('SELECT COUNT(*) as count FROM audio_files').get().count;
     const totalAds = db.prepare('SELECT COUNT(*) as count FROM ads').get().count;
